@@ -167,13 +167,17 @@ function rows() {
   }
   return out;
 }
-const refBuild = build => (buildOf(build) || {}).ref || 'stock';
-// Δ is against the build's own reference (builds.json `ref`, default the original stock); a stock build's
-// ACL-off row has no reference unless it names an older stock, in which case Δ shows upstream drift.
+// The stock reference is the build named `stock` when published, else the first build whose id starts with
+// `stock`, else the first build; a build's own `ref` (builds.json) wins when that build is in the payload.
+const stockId = () => { const b = CMP.builds.find(b => b.id === 'stock') || CMP.builds.find(b => /^stock/.test(b.id)) || CMP.builds[0]; return b ? b.id : 'stock'; };
+const refBuild = build => { const r = (buildOf(build) || {}).ref; return r && buildOf(r) ? r : stockId(); };
+const isRef = build => refBuild(build) === build;
+// Δ is against the build's own reference; the reference's ACL-off row has nothing to compare to, and its
+// ACL-on row shows the ACL tax vs its own ACL-off row.
 function refFor(build, acl, w, p, conns, iot, rate = S.rate) {
   const ref = refBuild(build);
-  if (build === 'stock' && !acl) return null;
-  return find(ref, build === 'stock' ? 0 : acl, w, p, conns, iot, rate);
+  if (isRef(build) && !acl) return null;
+  return find(ref, isRef(build) ? 0 : acl, w, p, conns, iot, rate);
 }
 function delta(c, ref) { return c && ref && c.mean && ref.mean ? (c.mean / ref.mean - 1) * 100 : null; }
 function pct(c) { return c && c.ci95_pct != null ? `±${c.ci95_pct.toFixed(1)}%` : ''; }
@@ -183,11 +187,11 @@ function renderScenario() {
   const { workload: w, pipeline: p, conns, io_threads: iot } = S;
   $('scenTitle').textContent = `Scenario: ${w.toUpperCase()} · P${p} · ${conns} conns · ${iot} io-threads · ACL ${S.acl} · ${rateLabel(S.rate)} · ${pinLabel(S.pin)}`;
   const rs = rows().map(r => ({ ...r, c: find(r.build, r.acl, w, p, conns, iot) })).filter(r => r.c);
-  const stock0 = find('stock', 0, w, p, conns, iot);
+  const stock0 = find(stockId(), 0, w, p, conns, iot);
   if (!rs.length) { $('scenTable').innerHTML = '<div class="empty">nothing measured at this configuration</div>'; mkChart('scenChart', { type: 'bar', data: { labels: [], datasets: [] } }); return; }
   $('scenTable').innerHTML = `<table><thead><tr><th>build</th><th>commit</th><th>k cmd/s</th><th>±CI</th><th>main</th><th>reps</th><th>Δ</th><th>Δ<sub>stock</sub></th><th>session</th></tr></thead><tbody>` +
     rs.map(({ build, acl, c }) => {
-      const d = delta(c, refFor(build, acl, w, p, conns, iot)), d0 = (build === 'stock' && !acl) ? null : delta(c, stock0);
+      const d = delta(c, refFor(build, acl, w, p, conns, iot)), d0 = (isRef(build) && !acl) ? null : delta(c, stock0);
       const u = unsat(c) ? 'unsat' : '';
       return `<tr><td><span class="sw" style="background:${color(build, acl)}"></span>${buildOf(build).label}${acl ? '<span class="pill acl">ACL</span>' : ''}</td>
         <td class="mut">${buildOf(build).commit}</td><td class="${u}" style="font-weight:650">${fmtK(c.mean)}</td><td class="mut">${pct(c)}</td><td>${mainCell(c)}</td>
