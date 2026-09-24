@@ -110,7 +110,7 @@ const $ = id => document.getElementById(id);
 const charts = {};
 function mkChart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
-function deltaColor(d) { if (d == null) return ''; const a = Math.min(Math.abs(d), 30) / 30; return d >= 0 ? `rgba(63,185,80,${0.10 + a * 0.45})` : `rgba(248,81,73,${0.10 + a * 0.45})`; }
+function deltaColor(d) { if (d == null) return ''; const a = Math.min(Math.abs(d), 100) / 100; return d >= 0 ? `rgba(63,185,80,${0.12 + a * 0.68})` : `rgba(248,81,73,${0.12 + a * 0.68})`; }
 
 // Whiskers for bar charts. dataset.ci = ± values in y units around the bar; dataset.range = [lo, hi] absolute.
 const whiskers = { id: 'whiskers', afterDatasetsDraw(chart) {
@@ -195,7 +195,7 @@ function renderScenario() {
       const u = unsat(c) ? 'unsat' : '';
       return `<tr><td><span class="sw" style="background:${color(build, acl)}"></span>${buildOf(build).label}${acl ? '<span class="pill acl">ACL</span>' : ''}</td>
         <td class="mut">${buildOf(build).commit}</td><td class="${u}" style="font-weight:650">${fmtK(c.mean)}</td><td class="mut">${pct(c)}</td><td>${mainCell(c)}</td>
-        <td class="mut">${c.n_valid}/${c.n}${c.n_failed ? ` <span class="pill low" title="generator never came up">+${c.n_failed} failed</span>` : ""}</td><td class="delta ${u}" style="background:${u ? '' : deltaColor(d)}">${fmtP(d)}</td><td class="delta ${u}" style="background:${u ? '' : deltaColor(d0)}">${fmtP(d0)}</td><td class="mut">${c.session}</td></tr>`;
+        <td class="mut">${c.n_valid}/${c.n}${c.n_failed ? ` <span class="pill low" title="generator never came up">+${c.n_failed} failed</span>` : ""}</td><td class="delta" style="background:${deltaColor(d)}">${fmtP(d)}</td><td class="delta" style="background:${deltaColor(d0)}">${fmtP(d0)}</td><td class="mut">${c.session}</td></tr>`;
     }).join('') + '</tbody></table>';
   mkChart('scenChart', {
     type: 'bar',
