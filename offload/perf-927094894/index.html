@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>offbench · superset-new 927094894 perf review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-warn: var(--warn, #d29922);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
+    --ob-new: #6ea8fe;
+    --ob-old: #a371f7;
+    --ob-up: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header .builds { color: var(--ob-muted); font-size: 12px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 96px; }
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; color: var(--ob-text-strong); }
+  h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12px; margin-bottom: 10px; max-width: 1100px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .grid2.det { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  #detTable td { white-space: normal; }
+  @media (max-width: 1100px) { .grid2, .grid2.det { grid-template-columns: 1fr; } }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 10px 14px; }
+  .stat .n { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l { color: var(--ob-muted); font-size: 12px; }
+  .stat.win .n { color: var(--ob-ok); } .stat.regress .n { color: var(--ob-danger); } .stat.tie .n { color: var(--ob-text-strong); } .stat.bad .n { color: var(--ob-warn); }
+  .headlines { margin: 12px 0 0; padding-left: 18px; max-width: 1100px; }
+  .headlines li { margin-bottom: 4px; }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  select { background: var(--ob-bg); color: var(--ob-text); border: 1px solid var(--ob-border); border-radius: 6px; padding: 4px 8px; font: inherit; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child { text-align: left; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; border: 1px solid var(--ob-border); margin-left: 4px; white-space: nowrap; }
+  .pill.win { color: var(--ob-ok); border-color: var(--ob-ok); background: var(--ob-ok-subtle); }
+  .pill.regress { color: var(--ob-danger); border-color: var(--ob-danger); background: var(--ob-danger-subtle); }
+  .pill.tie { color: var(--ob-text); }
+  .pill.warn, .pill.invalid, .pill.nobase { color: var(--ob-warn); border-color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .chart { position: relative; height: 300px; }
+  .hm { border-collapse: separate; border-spacing: 2px; width: auto; }
+  .hm th, .hm td { border: 0; padding: 0; }
+  .hm th.col { font-size: 10.5px; text-transform: none; letter-spacing: 0; padding: 2px 4px; text-align: center; }
+  .hm th.grp { text-align: center; color: var(--ob-text-strong); font-size: 11px; padding: 4px 0 2px; border-bottom: 1px solid var(--ob-border); }
+  .hm td.rl { text-align: left; padding: 0 10px 0 0; font-size: 12px; color: var(--ob-text); }
+  .hm td.tier { text-align: left; padding: 10px 0 3px; font-size: 11px; font-weight: 650; color: var(--ob-muted); text-transform: uppercase; letter-spacing: .4px; }
+  .hm td.c { width: 58px; height: 26px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 4px; cursor: pointer; color: var(--ob-text-strong); position: relative; }
+  .hm td.c.empty { cursor: default; background: transparent; }
+  .hm td.c.flag { color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .hm td.c.sel { outline: 2px solid var(--ob-accent); outline-offset: 0; }
+  .hm td.c sup { position: absolute; top: 0; right: 2px; font-size: 8px; line-height: 1; font-weight: 700; color: var(--ob-muted); }
+  .hm td.c:focus-visible { outline: 2px solid var(--ob-accent); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ob-muted); font-size: 11.5px; margin-top: 8px; align-items: center; }
+  .grad { display: inline-block; width: 160px; height: 10px; border-radius: 3px; vertical-align: -1px; background: linear-gradient(90deg, color-mix(in srgb, var(--ob-danger) 75%, transparent), color-mix(in srgb, var(--ob-danger) 8%, transparent) 48%, color-mix(in srgb, var(--ob-ok) 8%, transparent) 52%, color-mix(in srgb, var(--ob-ok) 75%, transparent)); }
+  .reps { display: inline-flex; gap: 2px; align-items: flex-end; height: 16px; vertical-align: -3px; margin-left: 6px; }
+  .reps i { display: inline-block; width: 6px; border-radius: 1px; }
+  .note { border-left: 3px solid var(--ob-warn); background: var(--ob-warn-subtle); color: var(--ob-text); padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 12px; }
+  ol.reg { margin: 0; padding-left: 20px; } ol.reg li { margin-bottom: 6px; } ol.reg button { background: none; border: 0; color: var(--ob-accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+  dl.meth { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; } dl.meth dt { color: var(--ob-muted); } dl.meth dd { margin: 0; }
+</style>
+</head>
+<body>
+<div class="top">
+<header>
+  <h1>superset-new vs old superset vs upstream</h1>
+  <span class="builds" id="buildLine"></span>
+  <nav>
+    <a href="#summary">Summary</a><a href="#map">Map</a><a href="#detail">Detail</a><a href="#scaling">Scaling</a><a href="#sizes">Value sizes</a><a href="#replica">Replica</a><a href="#regressions">Regressions</a><a href="#method">Method</a>
+    <a href="../">Benchmarks</a><a href="../replica/">Replica reads</a><a href="../perf/">Perf review 9875e82ca</a>
+  </nav>
+</header>
+</div>
+<main>
+
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="controls"><div class="g"><span>compare superset-new against</span><div class="seg" id="baseSeg"></div></div></div>
+  <div class="sub" id="sumSub"></div>
+  <div class="stats" id="stats"></div>
+  <ul class="headlines" id="headlines"></ul>
+</section>
+
+<section id="map">
+  <h2 id="mapTitle">superset-new ÷ baseline, every scenario</h2>
+  <div class="sub">Each square is one scenario: median ops/s of superset-new over the selected baseline across 3 reps per build. Green is superset-new faster, red slower; colour is full at 2x (or 0.5x) and beyond. Click a square for all three builds. Markers: <b>N</b> NIC allowance hit (number is a lower bound), <b>~</b> high variance (CV &gt; 5%), <b>✕</b> invalid, <b>–</b> no valid baseline.</div>
+  <div class="card"><div id="heatmap"></div>
+  <div class="legend"><span>0.5x</span><span class="grad"></span><span>2x+</span><span>tie = within 5% or overlapping reps (thin border)</span></div></div>
+</section>
+
+<section id="detail">
+  <h2 id="detTitle">Scenario detail</h2>
+  <div class="sub" id="detSub"></div>
+  <div class="grid2 det">
+    <div class="card"><div id="detTable"></div></div>
+    <div class="card"><h3>Latency (ms, median of reps)</h3><div class="chart"><canvas id="detChart"></canvas></div></div>
+  </div>
+</section>
+
+<section id="scaling">
+  <h2>Scaling with IO threads</h2>
+  <div class="sub">Throughput as io-threads grows (in superset io-threads also sets the number of write lanes). Hollow points hit the NIC allowance. Strings at 1, 2, 4, 8, 16, 32, 64 threads; other data types at 1, 2, 8, 32.</div>
+  <div class="controls">
+    <div class="g"><span>workload</span><select id="scFam"></select></div>
+    <div class="g"><span>pipeline</span><div class="seg" id="scP"></div></div>
+    <div class="g"><span>y axis</span><div class="seg" id="scY"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>ops/s</h3><div class="chart"><canvas id="scOps"></canvas></div></div>
+    <div class="card"><h3>p99 latency (ms)</h3><div class="chart"><canvas id="scLat"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div id="scTable"></div></div>
+</section>
+
+<section id="sizes">
+  <h2>Value size</h2>
+  <div class="sub">GET and SET with 16 B to 128 KB values, 1M keys. 128 B comes from the strings tier. From 16 KB up every build sits on the NIC limit (~5 GB/s).</div>
+  <div class="controls">
+    <div class="g"><span>command</span><div class="seg" id="szCmd"></div></div>
+    <div class="g"><span>io-threads</span><div class="seg" id="szIot"></div></div>
+    <div class="g"><span>pipeline</span><div class="seg" id="szP"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>ops/s</h3><div class="chart"><canvas id="szOps"></canvas></div></div>
+    <div class="card"><h3>payload throughput (GB/s, values only)</h3><div class="chart"><canvas id="szBw"></canvas></div></div>
+  </div>
+</section>
+
+<section id="replica">
+  <h2>Primary with a replica attached</h2>
+  <div class="sub">Primary and replica run the same build in every rep. Lag is the primary's replication offset minus the replica's, sampled every 0.5 s; median and max across the window, median of reps. A build whose replica link went down shows no throughput.</div>
+  <div class="card"><div id="replTable"></div></div>
+</section>
+
+<section id="regressions">
+  <h2>Regressions worth investigating</h2>
+  <div class="sub">Click one to open its worst scenario in the detail view.</div>
+  <div class="card"><ol class="reg" id="regList"></ol></div>
+</section>
+
+<section id="method">
+  <h2>Method</h2>
+  <div class="card"><dl class="meth" id="meth"></dl><ul id="methNotes" class="headlines"></ul></div>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const BK = ['new', 'old', 'upstream'];
+const COL = { new: css('--ob-new') || '#6ea8fe', old: css('--ob-old') || '#a371f7', upstream: css('--ob-up') || '#f0883e' };
+const LBL = { new: 'superset-new', old: 'old superset', upstream: 'upstream' };
+const FAM = {
+  'get': 'GET', 'set': 'SET', 'r80w20': '80/20 GET/SET', 'r50w50': '50/50 GET/SET',
+  'hget': 'HGET', 'hset': 'HSET', 'lpush': 'LPUSH', 'lrange': 'LRANGE', 'sadd': 'SADD', 'sismember': 'SISMEMBER',
+  'zadd': 'ZADD', 'zrange': 'ZRANGE', 'xadd': 'XADD', 'xrange': 'XRANGE', 'mget10': 'MGET 10 keys', 'mset10': 'MSET 10 keys',
+  'size16-get': 'GET 16 B', 'size16-set': 'SET 16 B', 'size1024-get': 'GET 1 KB', 'size1024-set': 'SET 1 KB',
+  'size16384-get': 'GET 16 KB', 'size16384-set': 'SET 16 KB', 'size131072-get': 'GET 128 KB', 'size131072-set': 'SET 128 KB',
+  'zipf-r80w20': '80/20 zipf 0.99', 'hotkey-r80w20': '80/20 one hot key', 'keys10k-r80w20': '80/20 10k keys',
+  'keys30m-r80w20': '80/20 30M keys', 'ttl-r80w20': '80/20 TTL churn', 'evict-r50w50': '50/50 maxmemory eviction',
+  'cluster-get': 'cluster GET', 'cluster-set': 'cluster SET', 'cluster-r80w20': 'cluster 80/20',
+  'repl-set': 'SET + replica', 'repl-r50w50': '50/50 + replica',
+};
+const TIER = { 1: 'Strings, 128 B, 1M keys', 2: 'Data types and multi-key', 3: 'Value size, key pattern, TTL, eviction, cluster', 4: 'Primary + replica' };
+const fam = (f) => FAM[f] || f;
+const fmtOps = (v) => v == null ? '–' : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 1 : 2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : v.toFixed(0);
+const fmtMs = (v) => v == null ? '–' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+const fmtPct = (v) => v == null ? '–' : (v * 100).toFixed(0) + '%';
+const fmtX = (r) => r == null ? '–' : r >= 10 ? r.toFixed(1) + 'x' : r.toFixed(2) + 'x';
+function ratioBg(r) {
+  if (r == null || !(r > 0)) return 'transparent';
+  const m = Math.min(Math.abs(Math.log2(r)), 1);
+  return `color-mix(in srgb, ${r >= 1 ? 'var(--ob-ok)' : 'var(--ob-danger)'} ${(8 + 67 * m).toFixed(0)}%, transparent)`;
+}
+let D, CELLS, BYID = {}, sel = null, BASE = 'upstream';
+const charts = {};
+function chart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
+function seg(id, opts, cur, onPick) {
+  const el = $(id); el.innerHTML = '';
+  opts.forEach(([v, label]) => {
+    const b = document.createElement('button'); b.textContent = label; b.type = 'button';
+    if (v === cur) b.classList.add('on');
+    b.onclick = () => { [...el.children].forEach(x => x.classList.remove('on')); b.classList.add('on'); onPick(v); };
+    el.appendChild(b);
+  });
+}
+const baseOpts = (ylog, ytitle) => ({
+  responsive: true, maintainAspectRatio: false, animation: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: { legend: { labels: { color: css('--ob-text') || '#e6e6e6' } } },
+  scales: {
+    x: { ticks: { color: css('--ob-muted') }, grid: { color: css('--ob-border') } },
+    y: { type: ylog ? 'logarithmic' : 'linear', title: { display: !!ytitle, text: ytitle, color: css('--ob-muted') },
+         ticks: { color: css('--ob-muted'), callback: (v) => fmtOps(v) }, grid: { color: css('--ob-border') } },
+  },
+});
+const IOTS = [1, 2, 4, 8, 16, 32, 64];
+const COLS = (() => { const out = []; for (const P of [1, 16, 64]) for (const iot of IOTS) out.push({ P, iot }); return out; })();
+const famOrder = Object.keys(FAM);
+const famsOfTier = (t) => [...new Set(CELLS.filter(c => c.tier === t).map(c => c.family))].sort((a, b) => famOrder.indexOf(a) - famOrder.indexOf(b));
+const cellAt = (f, P, iot) => CELLS.find(c => c.family === f && c.P === P && c.iot === iot);
+const ena = (c) => BK.some(b => c.builds[b] && c.builds[b].ena_reps > 0);
+const vs = (c, base = BASE) => c.vs[base];
+// a build's ops are not a result when its replica link went down during the window
+const ops = (c, b) => { const s = c.builds[b]; return !s || s.link_down_reps ? null : s.ops; };
+</script>
+<script>
+function renderSummary() {
+  const b = D.builds;
+  $('buildLine').textContent = BK.map(k => `${b[k].label} ${b[k].commit}`).join(' · ');
+  const n = { win: 0, tie: 0, regress: 0, invalid: 0, nobase: 0 };
+  CELLS.forEach(c => n[vs(c).verdict]++);
+  $('sumSub').textContent = `${CELLS.length} scenarios, 3 reps per build. Only superset-new was run for this page; old superset and upstream are the earlier review's runs on the same harness. ${D.window}.`;
+  $('stats').innerHTML = [
+    ['win', n.win, `superset-new faster than ${LBL[BASE]}`], ['tie', n.tie, 'within 5% or overlapping'], ['regress', n.regress, `superset-new slower than ${LBL[BASE]}`],
+    ['bad', n.invalid, 'invalid (replica link down)'], ['bad', n.nobase, 'no valid baseline'],
+  ].map(([k, v, l]) => `<div class="stat ${k}"><div class="n">${v}</div><div class="l">${l}</div></div>`).join('');
+  const g = (id) => BYID[id];
+  const tri = (id) => `${fmtOps(ops(g(id), 'new'))} / ${fmtOps(ops(g(id), 'old'))} / ${fmtOps(ops(g(id), 'upstream'))}`;
+  $('headlines').innerHTML = [
+    `<b>80/20 at pipeline 16 now scales past 16 IO threads.</b> new / old / upstream at 32 threads: ${tri('t1-r80w20-p16-iot32')}; at 64: ${tri('t1-r80w20-p16-iot64')}.`,
+    `<b>MSET of 10 keys is ahead of upstream.</b> P16, 8 threads: ${tri('t2-mset10-p16-iot8')}; 32 threads: ${tri('t2-mset10-p16-iot32')}.`,
+    `<b>ZADD is a new regression against old superset:</b> P16, 8 threads ${tri('t2-zadd-p16-iot8')} (${fmtX(g('t2-zadd-p16-iot8').vs.old.ratio)} old).`,
+    `<b>2 cores (main + 1 IO thread) pipelined still regresses</b> on SET, string mixes, hashes, SISMEMBER and streams: SET P16 ${tri('t5-set-p16-iot2')}.`,
+  ].map(x => `<li>${x}</li>`).join('');
+  $('mapTitle').textContent = `superset-new ÷ ${LBL[BASE]}, every scenario`;
+}
+
+function renderHeatmap() {
+  const used = COLS.filter(col => CELLS.some(c => c.P === col.P && c.iot === col.iot));
+  const groups = [1, 16, 64].map(P => [P, used.filter(c => c.P === P).length]).filter(([, n]) => n);
+  let h = '<table class="hm"><thead><tr><th></th>' + groups.map(([P, n]) => `<th class="grp" colspan="${n}">pipeline ${P}</th>`).join('') + '</tr>';
+  h += '<tr><th></th>' + used.map(c => `<th class="col">${c.iot} iot</th>`).join('') + '</tr></thead><tbody>';
+  for (const t of [1, 2, 3, 4]) {
+    h += `<tr><td class="tier" colspan="${used.length + 1}">${TIER[t]}</td></tr>`;
+    for (const f of famsOfTier(t)) {
+      h += `<tr><td class="rl">${fam(f)}</td>`;
+      for (const col of used) {
+        const c = cellAt(f, col.P, col.iot);
+        if (!c) { h += '<td class="c empty"></td>'; continue; }
+        const v = vs(c), title = `${fam(f)} · P${c.P} · io-threads ${c.iot}`;
+        if (v.verdict === 'invalid' || v.verdict === 'nobase') {
+          h += `<td class="c flag" tabindex="0" data-id="${c.id}" title="${title}: ${c.note || v.verdict}">${v.verdict === 'invalid' ? '✕' : '–'}</td>`;
+          continue;
+        }
+        const marks = (ena(c) ? 'N' : '') + (c.high_var ? '~' : '');
+        const border = v.verdict === 'tie' ? 'box-shadow: inset 0 0 0 1px var(--ob-border);' : '';
+        h += `<td class="c" tabindex="0" data-id="${c.id}" style="background:${ratioBg(v.ratio)};${border}" title="${title}: ${fmtOps(ops(c, 'new'))} vs ${fmtOps(ops(c, BASE))} (${v.verdict})">${fmtX(v.ratio)}${marks ? `<sup>${marks}</sup>` : ''}</td>`;
+      }
+      h += '</tr>';
+    }
+  }
+  $('heatmap').innerHTML = h + '</tbody></table>';
+  $('heatmap').querySelectorAll('td.c[data-id]').forEach(td => {
+    const go = () => { select(td.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); };
+    td.onclick = go; td.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+  });
+  if (sel) { const td = document.querySelector(`.hm td[data-id="${sel}"]`); if (td) td.classList.add('sel'); }
+}
+
+function repBars(reps, max) {
+  return '<span class="reps">' + reps.map(v => `<i style="height:${v && max ? Math.max(2, 16 * v / max) : 1}px;background:var(--ob-muted)"></i>`).join('') + '</span>';
+}
+const vPill = (v, who) => v.verdict === 'invalid' || v.verdict === 'nobase'
+  ? `<span class="pill ${v.verdict}">${v.verdict === 'invalid' ? 'invalid' : 'no baseline'} vs ${who}</span>`
+  : `<span class="pill ${v.verdict}">${v.verdict} ${fmtX(v.ratio)} vs ${who}</span>`;
+
+function select(id) {
+  sel = id; const c = BYID[id];
+  document.querySelectorAll('.hm td.sel').forEach(x => x.classList.remove('sel'));
+  const td = document.querySelector(`.hm td[data-id="${id}"]`); if (td) td.classList.add('sel');
+  const bs = BK.filter(b => c.builds[b]);
+  $('detTitle').innerHTML = `${fam(c.family)} · pipeline ${c.P} · io-threads ${c.iot} ${vPill(c.vs.upstream, 'upstream')}${vPill(c.vs.old, 'old')}${ena(c) ? '<span class="pill warn">NIC limit</span>' : ''}${c.high_var ? '<span class="pill warn">high variance</span>' : ''}`;
+  $('detSub').innerHTML = `${c.desc} · ${c.conns.toLocaleString()} connections · scenario <code>${c.id}</code>` + (c.note ? `<div class="note">${c.note}</div>` : '');
+  const B = (b) => c.builds[b] || {};
+  const max = Math.max(0, ...bs.flatMap(b => B(b).reps).filter(Boolean));
+  const row = (k, fn) => [k, ...bs.map(b => fn(B(b), b))];
+  const rows = [
+    row('ops/s (median)', (s, b) => (B(b).link_down_reps ? '<span class="mut">link down</span>' : fmtOps(s.ops)) + repBars(s.reps, max)),
+    row('reps', (s) => s.reps.map(fmtOps).join(' · ')),
+    row('CV across reps', (s) => fmtPct(s.cv)),
+    row('p50 ms', (s) => fmtMs(s.p50)), row('p99 ms', (s) => fmtMs(s.p99)), row('p99.9 ms', (s) => fmtMs(s.p999)), row('p100 ms', (s) => fmtMs(s.p100)),
+    row('main thread busy', (s) => fmtPct(s.cpu_main)),
+    row('IO threads busy (mean / max)', (s) => `${fmtPct(s.cpu_io_mean)} / ${fmtPct(s.cpu_io_max)}`),
+    row('poller busy', (s, b) => b === 'upstream' ? '<span class="mut">n/a</span>' : fmtPct(s.cpu_poller)),
+    row('server CPU (cores)', (s) => s.cpu_total?.toFixed(1) ?? '–'),
+    row('ops per CPU-second', (s) => fmtOps(s.ops_cpu)),
+    row('RSS MB', (s) => s.rss_mb ?? '–'), row('used memory MB', (s) => s.used_mb ?? '–'),
+  ];
+  if (bs.some(b => B(b).evicted)) rows.push(row('keys evicted in window', (s) => fmtOps(s.evicted)));
+  if (bs.some(b => B(b).expired)) rows.push(row('keys expired in window', (s) => fmtOps(s.expired)));
+  if (c.tier === 4) {
+    rows.push(row('replica lag median / max MB', (s) => `${s.lag_med_mb ?? '–'} / ${s.lag_max_mb ?? '–'}`));
+    rows.push(row('reps with replica link down', (s) => `${s.link_down_reps}/3`));
+  }
+  rows.push(row('reps that hit the NIC limit', (s) => `${s.ena_reps}/3`));
+  $('detTable').innerHTML = '<table><thead><tr><th>metric</th>' + bs.map(b => `<th><span class="sw" style="background:${COL[b]}"></span>${LBL[b]}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => `<tr>${r.map(x => `<td>${x}</td>`).join('')}</tr>`).join('') + '</tbody></table>' +
+    (bs.length < 3 ? '<div class="mut" style="margin-top:6px;font-size:11.5px">Missing columns: no valid run for that build.</div>' : '') +
+    '<div class="mut" style="margin-top:6px;font-size:11.5px">Superset threads busy-poll, so their CPU reads near 100% when idle.</div>';
+  const keys = [['p50', 'p50'], ['p99', 'p99'], ['p999', 'p99.9']];
+  chart('detChart', {
+    type: 'bar',
+    data: { labels: keys.map(k => k[1]), datasets: bs.map(b => ({ label: LBL[b], backgroundColor: COL[b], data: keys.map(k => B(b)[k[0]]) })) },
+    options: { ...baseOpts(true, 'ms'), scales: { ...baseOpts(true).scales, y: { type: 'logarithmic', ticks: { color: css('--ob-muted'), callback: (v) => fmtMs(v) }, grid: { color: css('--ob-border') } } } },
+  });
+}
+</script>
+<script>
+let SC = { fam: 'r80w20', P: 16, ylog: false };
+function renderScaling() {
+  const fams = famOrder.filter(f => new Set(CELLS.filter(c => c.family === f).map(c => c.iot)).size > 1);
+  $('scFam').innerHTML = fams.map(f => `<option value="${f}"${f === SC.fam ? ' selected' : ''}>${fam(f)}</option>`).join('');
+  $('scFam').onchange = (e) => { SC.fam = e.target.value; drawScaling(); };
+  seg('scY', [[false, 'linear'], [true, 'log']], SC.ylog, (v) => { SC.ylog = v; drawScaling(); });
+  drawScaling();
+}
+function drawScaling() {
+  const Ps = [...new Set(CELLS.filter(c => c.family === SC.fam).map(c => c.P))].sort((a, b) => a - b);
+  if (!Ps.includes(SC.P)) SC.P = Ps[Ps.length > 1 ? 1 : 0];
+  seg('scP', Ps.map(p => [p, String(p)]), SC.P, (v) => { SC.P = v; drawScaling(); });
+  const cs = CELLS.filter(c => c.family === SC.fam && c.P === SC.P).sort((a, b) => a.iot - b.iot);
+  const labels = cs.map(c => String(c.iot));
+  const val = (c, b, key) => key === 'ops' ? ops(c, b) : (c.builds[b] && !c.builds[b].link_down_reps ? c.builds[b][key] : null);
+  const ds = (key) => BK.filter(b => cs.some(c => val(c, b, key) != null)).map(b => ({
+    label: LBL[b], borderColor: COL[b], backgroundColor: COL[b], tension: .15, spanGaps: true,
+    data: cs.map(c => val(c, b, key)),
+    pointRadius: 4, pointBackgroundColor: cs.map(c => c.builds[b]?.ena_reps ? 'transparent' : COL[b]), pointBorderWidth: 2,
+  }));
+  const o = baseOpts(SC.ylog); o.scales.x.title = { display: true, text: 'io-threads', color: css('--ob-muted') };
+  chart('scOps', { type: 'line', data: { labels, datasets: ds('ops') }, options: o });
+  const ol = baseOpts(SC.ylog); ol.scales.x.title = o.scales.x.title; ol.scales.y.ticks.callback = (v) => fmtMs(v);
+  chart('scLat', { type: 'line', data: { labels, datasets: ds('p99') }, options: ol });
+  const r = (v) => v.verdict === 'invalid' || v.verdict === 'nobase' ? `<td class="mut">${v.verdict === 'nobase' ? 'no baseline' : 'invalid'}</td>` : `<td style="background:${ratioBg(v.ratio)}">${fmtX(v.ratio)}</td>`;
+  $('scTable').innerHTML = '<table><thead><tr><th>io-threads</th>' + BK.map(b => `<th>${LBL[b]} ops/s</th>`).join('') + '<th>new ÷ upstream</th><th>new ÷ old</th>' + BK.map(b => `<th>${LBL[b]} p99</th>`).join('') + '<th>new main / poller</th><th></th></tr></thead><tbody>' +
+    cs.map(c => `<tr data-id="${c.id}" style="cursor:pointer"><td>${c.iot}</td>${BK.map(b => `<td>${fmtOps(ops(c, b))}</td>`).join('')}${r(c.vs.upstream)}${r(c.vs.old)}${BK.map(b => `<td>${fmtMs(c.builds[b]?.p99)}</td>`).join('')}<td>${fmtPct(c.builds.new.cpu_main)} / ${fmtPct(c.builds.new.cpu_poller)}</td><td>${ena(c) ? '<span class="pill warn">NIC</span>' : ''}${c.high_var ? '<span class="pill warn">~</span>' : ''}</td></tr>`).join('') + '</tbody></table>';
+  $('scTable').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { select(tr.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); });
+}
+
+let SZ = { cmd: 'get', iot: 8, P: 16 };
+function renderSizes() {
+  seg('szCmd', [['get', 'GET'], ['set', 'SET']], SZ.cmd, (v) => { SZ.cmd = v; drawSizes(); });
+  seg('szIot', [[8, '8'], [32, '32']], SZ.iot, (v) => { SZ.iot = v; drawSizes(); });
+  seg('szP', [[1, '1'], [16, '16']], SZ.P, (v) => { SZ.P = v; drawSizes(); });
+  drawSizes();
+}
+function drawSizes() {
+  const sizes = [[16, '16 B', `size16-${SZ.cmd}`], [128, '128 B', SZ.cmd], [1024, '1 KB', `size1024-${SZ.cmd}`], [16384, '16 KB', `size16384-${SZ.cmd}`], [131072, '128 KB', `size131072-${SZ.cmd}`]];
+  const cs = sizes.map(([sz, l, f]) => [sz, l, cellAt(f, SZ.P, SZ.iot)]);
+  const labels = cs.map(x => x[1]);
+  const mk = (fn) => BK.map(b => ({ label: LBL[b], backgroundColor: COL[b], data: cs.map(([sz, , c]) => c && ops(c, b) ? fn(ops(c, b), sz) : null) }));
+  chart('szOps', { type: 'bar', data: { labels, datasets: mk((x) => x) }, options: baseOpts(true) });
+  const ob = baseOpts(false); ob.scales.y.ticks.callback = (v) => v.toFixed(1);
+  chart('szBw', { type: 'bar', data: { labels, datasets: mk((x, sz) => x * sz / 1e9) }, options: ob });
+}
+
+function renderReplica() {
+  const cs = CELLS.filter(c => c.tier === 4).sort((a, b) => a.family.localeCompare(b.family) || a.iot - b.iot);
+  const lag = (s) => !s ? '–' : s.link_down_reps ? `<span class="pill invalid">link down ${s.link_down_reps}/3</span>` : `${s.lag_med_mb} / ${s.lag_max_mb}`;
+  const r = (v) => v.verdict === 'invalid' ? '<td style="background:var(--ob-warn-subtle)">invalid</td>' : `<td style="background:${ratioBg(v.ratio)}">${fmtX(v.ratio)}</td>`;
+  $('replTable').innerHTML = '<table><thead><tr><th>workload, pipeline 16</th><th>io-threads</th>' + BK.map(b => `<th>${LBL[b]} primary ops/s</th>`).join('') + '<th>new ÷ upstream</th><th>new ÷ old</th>' + BK.map(b => `<th>${LBL[b]} lag med / max MB</th>`).join('') + '</tr></thead><tbody>' +
+    cs.map(c => `<tr data-id="${c.id}" style="cursor:pointer"><td>${fam(c.family)}</td><td>${c.iot}</td>${BK.map(b => `<td>${fmtOps(ops(c, b))}</td>`).join('')}${r(c.vs.upstream)}${r(c.vs.old)}${BK.map(b => `<td>${lag(c.builds[b])}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+  $('replTable').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { select(tr.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); });
+}
+
+function renderRegressions() {
+  $('regList').innerHTML = D.regressions.map((r, i) => `<li><button type="button" data-i="${i}">${r.title}</button>: ${r.detail}</li>`).join('');
+  $('regList').querySelectorAll('button').forEach(btn => btn.onclick = () => {
+    const reg = D.regressions[btn.dataset.i], key = reg.cells, base = reg.base || 'upstream';
+    const pool = CELLS.filter(c => key === 'iot1' ? c.iot === 1 : c.id.startsWith(key.endsWith('-') ? key : key + '-'));
+    const pick = pool.find(c => c.vs[base].verdict === 'invalid') || pool.filter(c => c.vs[base].ratio).sort((a, b) => a.vs[base].ratio - b.vs[base].ratio)[0];
+    if (base !== BASE) setBase(base);
+    if (pick) select(pick.id);
+    $('detail').scrollIntoView({ behavior: 'smooth' });
+  });
+}
+
+function renderMethod() {
+  const m = D.method;
+  $('meth').innerHTML = [['hardware', m.hardware], ['build', m.build], ['pinning', m.pinning], ['client', m.client], ['runs', m.run], ['verdict', m.verdict]].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  $('methNotes').innerHTML = m.notes.map(n => `<li>${n}</li>`).join('');
+}
+
+function setBase(b) {
+  BASE = b;
+  seg('baseSeg', [['upstream', 'upstream 2a23bcda0'], ['old', 'old superset 9875e82ca']], BASE, setBase);
+  renderSummary(); renderHeatmap();
+}
+
+fetch('data/perf.json').then(r => r.json()).then(d => {
+  D = d; CELLS = d.cells; CELLS.forEach(c => BYID[c.id] = c);
+  setBase('upstream'); select('t1-r80w20-p16-iot32'); renderScaling(); renderSizes(); renderReplica(); renderRegressions(); renderMethod();
+}).catch(e => { document.querySelector('main').insertAdjacentHTML('afterbegin', `<div class="note">Could not load data/perf.json: ${e}</div>`); });
+</script>
+</body>
+</html>
