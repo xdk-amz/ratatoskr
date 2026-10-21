@@ -99,7 +99,7 @@
   <h1>superset-new vs old superset vs upstream</h1>
   <span class="builds" id="buildLine"></span>
   <nav>
-    <a href="#summary">Summary</a><a href="#map">Map</a><a href="#detail">Detail</a><a href="#scaling">Scaling</a><a href="#sizes">Value sizes</a><a href="#replica">Replica</a><a href="#regressions">Regressions</a><a href="#method">Method</a>
+    <a href="#summary">Summary</a><a href="#map">Map</a><a href="#detail">Detail</a><a href="#scaling">Scaling</a><a href="#sizes">Value sizes</a><a href="#probes">16 B GET ceiling</a><a href="#replica">Replica</a><a href="#regressions">Regressions</a><a href="#method">Method</a>
     <a href="../">Benchmarks</a><a href="../replica/">Replica reads</a><a href="../perf/">Perf review 9875e82ca</a>
   </nav>
 </header>
@@ -157,6 +157,12 @@
     <div class="card"><h3>ops/s</h3><div class="chart"><canvas id="szOps"></canvas></div></div>
     <div class="card"><h3>payload throughput (GB/s, values only)</h3><div class="chart"><canvas id="szBw"></canvas></div></div>
   </div>
+</section>
+
+<section id="probes">
+  <h2>GET 16 B ceiling probes (superset-new only)</h2>
+  <div class="sub">How far superset-new goes on 16 B GET with more IO threads, more connections and a deeper pipeline. Upstream and old superset were not run for these. Socket reads/s counts read calls on client connections; each one carries a full pipeline of GETs. Click a row for its detail.</div>
+  <div class="card"><div id="probeTable"></div></div>
 </section>
 
 <section id="replica">
@@ -396,6 +402,21 @@ function renderReplica() {
   $('replTable').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { select(tr.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); });
 }
 
+function renderProbes() {
+  const ref = BYID['t3-size16-get-p16-iot32'];
+  const rows = [...(ref ? [{ ...ref, clients: 3, ref: true }] : []), ...(D.probes || [])];
+  if (!rows.length) { $('probes').style.display = 'none'; return; }
+  $('probeTable').innerHTML = '<table><thead><tr><th>io-threads</th><th>pipeline</th><th>connections</th><th>client hosts</th><th>ops/s</th><th>reps</th><th>socket reads/s</th><th>GETs per read</th><th>p50 / p99 / p99.9 ms</th><th></th></tr></thead><tbody>' +
+    rows.map(c => {
+      const s = c.builds.new;
+      const perRead = s.cmds_per_read ?? c.P;
+      const flags = (ena(c) ? `<span class="pill warn">NIC ${s.ena_reps}/3</span>` : '') + (c.high_var ? '<span class="pill warn">~</span>' : '') + (c.ref ? '<span class="mut">suite scenario</span>' : '');
+      return `<tr data-id="${c.id}" style="cursor:pointer"><td>${c.iot}</td><td>${c.P}</td><td>${c.conns.toLocaleString()}</td><td>${c.clients}</td><td><b>${fmtOps(s.ops)}</b></td><td class="mut">${s.reps.map(fmtOps).join(' · ')}</td><td>${s.socket_reads ? fmtOps(s.socket_reads) : '–'}</td><td>${perRead}</td><td>${fmtMs(s.p50)} / ${fmtMs(s.p99)} / ${fmtMs(s.p999)}</td><td>${flags}</td></tr>`;
+    }).join('') + '</tbody></table>' +
+    '<div class="mut" style="margin-top:6px;font-size:11.5px">At pipeline 16 throughput holds near 49M from 32 to 64 IO threads and from 2,304 to 9,600 connections; extra connections only add latency. At pipeline 64 with 64 IO threads the NIC inbound bandwidth allowance is exceeded, so 162M is a lower bound on server capacity.</div>';
+  $('probeTable').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { select(tr.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); });
+}
+
 function renderRegressions() {
   $('regList').innerHTML = D.regressions.map((r, i) => `<li><button type="button" data-i="${i}">${r.title}</button>: ${r.detail}</li>`).join('');
   $('regList').querySelectorAll('button').forEach(btn => btn.onclick = () => {
@@ -421,8 +442,8 @@ function setBase(b) {
 }
 
 fetch('data/perf.json').then(r => r.json()).then(d => {
-  D = d; CELLS = d.cells; CELLS.forEach(c => BYID[c.id] = c);
-  setBase('upstream'); select('t1-r80w20-p16-iot32'); renderScaling(); renderSizes(); renderReplica(); renderRegressions(); renderMethod();
+  D = d; CELLS = d.cells; CELLS.forEach(c => BYID[c.id] = c); (d.probes || []).forEach(c => BYID[c.id] = c);
+  setBase('upstream'); select('t1-r80w20-p16-iot32'); renderScaling(); renderSizes(); renderProbes(); renderReplica(); renderRegressions(); renderMethod();
 }).catch(e => { document.querySelector('main').insertAdjacentHTML('afterbegin', `<div class="note">Could not load data/perf.json: ${e}</div>`); });
 </script>
 </body>
