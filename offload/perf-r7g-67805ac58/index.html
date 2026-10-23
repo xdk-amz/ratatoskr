@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>offbench · superset-new-prefetch vs upstream on r7g.large / r7g.xlarge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-warn: var(--warn, #d29922);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
+    --ob-new: #6ea8fe;
+    --ob-old: #a371f7;
+    --ob-up: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header .builds { color: var(--ob-muted); font-size: 12px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 96px; }
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; color: var(--ob-text-strong); }
+  h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12px; margin-bottom: 10px; max-width: 1100px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .grid2.det { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  #detTable td { white-space: normal; }
+  @media (max-width: 1100px) { .grid2, .grid2.det { grid-template-columns: 1fr; } }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 10px 14px; }
+  .stat .n { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l { color: var(--ob-muted); font-size: 12px; }
+  .stat.win .n { color: var(--ob-ok); } .stat.regress .n { color: var(--ob-danger); } .stat.tie .n { color: var(--ob-text-strong); } .stat.bad .n { color: var(--ob-warn); }
+  .headlines { margin: 12px 0 0; padding-left: 18px; max-width: 1100px; }
+  .headlines li { margin-bottom: 4px; }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  select { background: var(--ob-bg); color: var(--ob-text); border: 1px solid var(--ob-border); border-radius: 6px; padding: 4px 8px; font: inherit; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child { text-align: left; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; border: 1px solid var(--ob-border); margin-left: 4px; white-space: nowrap; }
+  .pill.win { color: var(--ob-ok); border-color: var(--ob-ok); background: var(--ob-ok-subtle); }
+  .pill.regress { color: var(--ob-danger); border-color: var(--ob-danger); background: var(--ob-danger-subtle); }
+  .pill.tie { color: var(--ob-text); }
+  .pill.warn, .pill.invalid, .pill.nobase { color: var(--ob-warn); border-color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .chart { position: relative; height: 300px; }
+  .hm { border-collapse: separate; border-spacing: 2px; width: auto; }
+  .hm th, .hm td { border: 0; padding: 0; }
+  .hm th.col { font-size: 10.5px; text-transform: none; letter-spacing: 0; padding: 2px 4px; text-align: center; }
+  .hm th.grp { text-align: center; color: var(--ob-text-strong); font-size: 11px; padding: 4px 0 2px; border-bottom: 1px solid var(--ob-border); }
+  .hm td.rl { text-align: left; padding: 0 10px 0 0; font-size: 12px; color: var(--ob-text); }
+  .hm td.tier { text-align: left; padding: 10px 0 3px; font-size: 11px; font-weight: 650; color: var(--ob-muted); text-transform: uppercase; letter-spacing: .4px; }
+  .hm td.c { width: 58px; height: 26px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 4px; cursor: pointer; color: var(--ob-text-strong); position: relative; }
+  .hm td.c.empty { cursor: default; background: transparent; }
+  .hm td.c.flag { color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .hm td.c.sel { outline: 2px solid var(--ob-accent); outline-offset: 0; }
+  .hm td.c sup { position: absolute; top: 0; right: 2px; font-size: 8px; line-height: 1; font-weight: 700; color: var(--ob-muted); }
+  .hm td.c:focus-visible { outline: 2px solid var(--ob-accent); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ob-muted); font-size: 11.5px; margin-top: 8px; align-items: center; }
+  .grad { display: inline-block; width: 160px; height: 10px; border-radius: 3px; vertical-align: -1px; background: linear-gradient(90deg, color-mix(in srgb, var(--ob-danger) 75%, transparent), color-mix(in srgb, var(--ob-danger) 8%, transparent) 48%, color-mix(in srgb, var(--ob-ok) 8%, transparent) 52%, color-mix(in srgb, var(--ob-ok) 75%, transparent)); }
+  .reps { display: inline-flex; gap: 2px; align-items: flex-end; height: 16px; vertical-align: -3px; margin-left: 6px; }
+  .reps i { display: inline-block; width: 6px; border-radius: 1px; }
+  .note { border-left: 3px solid var(--ob-warn); background: var(--ob-warn-subtle); color: var(--ob-text); padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 12px; }
+  ol.reg { margin: 0; padding-left: 20px; } ol.reg li { margin-bottom: 6px; } ol.reg button { background: none; border: 0; color: var(--ob-accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+  dl.meth { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; } dl.meth dt { color: var(--ob-muted); } dl.meth dd { margin: 0; }
+</style>
+<body>
+<div class="top">
+<header>
+  <h1>superset-new-prefetch vs upstream on r7g.large and r7g.xlarge</h1>
+  <span class="builds" id="buildLine"></span>
+  <nav>
+    <a href="#summary">Summary</a><a href="#cells">Scenarios</a><a href="#detail">Detail</a><a href="#calib">Layout calibration</a><a href="#method">Method</a>
+    <a href="../">Benchmarks</a><a href="../perf-67805ac58/">Prefetch on c8gn</a><a href="../perf-927094894/">Perf review 927094894</a>
+  </nav>
+</header>
+</div>
+<main>
+
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="sub" id="sumSub"></div>
+  <div id="sumGrid" class="grid2"></div>
+  <ul class="headlines" id="headlines"></ul>
+</section>
+
+<section id="cells">
+  <h2>Every scenario</h2>
+  <div class="sub">Median ops/s of 3 reps for each build on each instance size, and prefetch ÷ upstream. Each build uses its own best layout (see calibration). Click a row for reps, latency and CPU. Markers: <b>N</b> NIC allowance hit (number is a lower bound), <b>~</b> high variance (CV &gt; 5%), <b>n/3</b> fewer than 3 valid reps, <b>✕</b> replica link down.</div>
+  <div class="controls"><div class="g"><span>tier</span><div class="seg" id="tierSeg"></div></div></div>
+  <div class="card"><div id="cellTable"></div></div>
+</section>
+
+<section id="detail">
+  <h2 id="detTitle">Scenario detail</h2>
+  <div class="sub" id="detSub"></div>
+  <div class="card"><div id="detTable"></div></div>
+</section>
+
+<section id="calib">
+  <h2>Layout calibration</h2>
+  <div class="sub">One run each of GET P16, SET P16 and 80/20 P1 per layout, per build. The highest layout for each build (marked) was used for every scenario of that build.</div>
+  <div class="card"><div id="calTable"></div></div>
+</section>
+
+<section id="method">
+  <h2>Method</h2>
+  <div class="card"><dl class="meth" id="meth"></dl><ul id="notes" style="margin:10px 0 0;padding-left:18px"></ul></div>
+</section>
+
+</main>
+<script>
+const FAM = {
+  'get': 'GET', 'set': 'SET', 'r80w20': '80/20 GET/SET', 'r50w50': '50/50 GET/SET',
+  'hget': 'HGET', 'hset': 'HSET', 'lpush': 'LPUSH', 'lrange': 'LRANGE', 'sadd': 'SADD', 'sismember': 'SISMEMBER',
+  'zadd': 'ZADD', 'zrange': 'ZRANGE', 'xadd': 'XADD', 'xrange': 'XRANGE', 'mget10': 'MGET 10 keys', 'mset10': 'MSET 10 keys',
+  'size16-get': 'GET 16 B', 'size16-set': 'SET 16 B', 'size1024-get': 'GET 1 KB', 'size1024-set': 'SET 1 KB',
+  'size16384-get': 'GET 16 KB', 'size16384-set': 'SET 16 KB', 'size131072-get': 'GET 128 KB', 'size131072-set': 'SET 128 KB',
+  'zipf-r80w20': '80/20 zipf 0.99', 'hotkey-r80w20': '80/20 one hot key', 'keys10k-r80w20': '80/20 10k keys',
+  'keys30m-r80w20': '80/20 30M keys', 'ttl-r80w20': '80/20 TTL churn', 'evict-r50w50': '50/50 maxmemory eviction',
+  'cluster-get': 'cluster GET', 'cluster-set': 'cluster SET', 'cluster-r80w20': 'cluster 80/20',
+  'repl-set': 'SET + replica', 'repl-r50w50': '50/50 + replica',
+};
+const TIER = { 1: 'Strings, 128 B, 1M keys', 2: 'Data types and multi-key', 3: 'Value size, key pattern, TTL, eviction, cluster', 4: 'Primary + replica' };
+const SZ = ['large', 'xlarge'], BK = ['new', 'upstream'];
+const LBL = { new: 'prefetch', upstream: 'upstream' };
+const fam = (f) => FAM[f] || f;
+const famOrder = Object.keys(FAM);
+const fmtOps = (v) => v == null ? '–' : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 1 : 2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : v.toFixed(0);
+const fmtMs = (v) => v == null ? '–' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+const fmtX = (v) => v == null ? '–' : v.toFixed(2) + 'x';
+const fmtPct = (v) => v == null ? '–' : (v * 100).toFixed(0) + '%';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+function ratioBg(r) {
+  if (r == null) return 'transparent';
+  const d = Math.log2(r), a = Math.min(1, Math.abs(d)) * 0.67 + 0.08;
+  return `color-mix(in srgb, var(${d >= 0 ? '--ob-ok' : '--ob-danger'}) ${Math.round(a * 100)}%, transparent)`;
+}
+let D, CELLS = [], BYID = {}, TIER_SEL = 0, sel = null;
+const gm = (xs) => { xs = xs.filter((x) => x); return xs.length ? Math.exp(xs.reduce((a, x) => a + Math.log(x), 0) / xs.length) : null; };
+</script>
+<script>
+function marks(s) {
+  if (!s) return '';
+  let m = '';
+  if (s.nic_reps) m += ' <span class="pill warn" title="NIC allowance hit in ' + s.nic_reps + '/3 reps">N</span>';
+  if ((s.cv || 0) > 0.05) m += ' <span class="pill warn" title="CV ' + fmtPct(s.cv) + '">~</span>';
+  if (s.valid < 3) m += ' <span class="pill warn" title="valid reps">' + s.valid + '/3</span>';
+  if (s.down_reps) m += ' <span class="pill invalid" title="replica link down in ' + s.down_reps + ' reps">✕</span>';
+  return m;
+}
+const vPill = (v) => !v || v.verdict === 'nobase' ? '<span class="mut">–</span>'
+  : v.verdict === 'invalid' ? '<span class="pill invalid">invalid</span>'
+  : `<span class="pill ${v.verdict}">${fmtX(v.ratio)}</span>`;
+
+function renderSummary() {
+  const b = D.builds;
+  $('buildLine').textContent = BK.map((k) => `${b[k].label} ${b[k].commit}`).join(' · ');
+  $('sumSub').textContent = `${CELLS.length} scenarios on each instance size, 3 reps per build. No other build or earlier run exists for these sizes. ${D.window}.`;
+  const lines = [];
+  $('sumGrid').innerHTML = SZ.map((sz) => {
+    const n = { win: 0, tie: 0, regress: 0, invalid: 0, nobase: 0 };
+    const rs = [];
+    CELLS.forEach((c) => { const v = c.sizes[sz]?.vs; if (v) { n[v.verdict]++; if (v.ratio && v.verdict !== 'invalid') rs.push(v.ratio); } });
+    const g = gm(rs);
+    const ranked = CELLS.filter((c) => c.sizes[sz]?.vs?.ratio && c.sizes[sz].vs.verdict !== 'invalid').sort((a, b) => b.sizes[sz].vs.ratio - a.sizes[sz].vs.ratio);
+    const one = (c) => `${fam(c.family)} P${c.P} ${fmtX(c.sizes[sz].vs.ratio)}`;
+    if (ranked.length) {
+      lines.push(`<b>${D.sizes[sz].label}</b>: prefetch is ${fmtX(g)} upstream (geometric mean of ${rs.length} scenarios). Largest gains: ${ranked.slice(0, 3).map(one).join(', ')}. Largest losses: ${ranked.slice(-3).reverse().map(one).join(', ')}.`);
+    }
+    const stat = (k, v, l) => `<div class="stat ${k}"><div class="n">${v}</div><div class="l">${l}</div></div>`;
+    return `<div class="card"><h3>${D.sizes[sz].label} · ${D.sizes[sz].vcpu} vCPU</h3><div class="stats">` +
+      stat('tie', fmtX(g), 'prefetch ÷ upstream, geomean') + stat('win', n.win, 'prefetch faster') + stat('tie', n.tie, 'within 5% or overlapping') +
+      stat('regress', n.regress, 'prefetch slower') + stat('bad', n.invalid + n.nobase, 'invalid or not yet run') + '</div></div>';
+  }).join('');
+  $('headlines').innerHTML = lines.map((x) => `<li>${x}</li>`).join('');
+}
+
+function renderTable() {
+  const cs = CELLS.filter((c) => !TIER_SEL || c.tier === TIER_SEL);
+  let h = '<table><thead><tr><th rowspan="2">scenario</th><th rowspan="2">pipeline</th>' +
+    SZ.map((sz) => `<th colspan="3" style="text-align:center">${D.sizes[sz].label}</th>`).join('') + '<th rowspan="2">prefetch xlarge ÷ large</th></tr><tr>' +
+    SZ.map(() => '<th>prefetch</th><th>upstream</th><th>÷</th>').join('') + '</tr></thead><tbody>';
+  let last = null;
+  for (const c of cs) {
+    if (c.tier !== last) { h += `<tr><td colspan="9" class="mut" style="padding-top:12px;font-weight:650;text-transform:uppercase;font-size:11px">${TIER[c.tier]}</td></tr>`; last = c.tier; }
+    h += `<tr data-id="${c.id}" style="cursor:pointer${sel === c.id ? ';outline:2px solid var(--ob-accent)' : ''}"><td>${fam(c.family)}</td><td>${c.P}</td>` +
+      SZ.map((sz) => {
+        const s = c.sizes[sz] || {};
+        return `<td>${fmtOps(s.new?.ops)}${marks(s.new)}</td><td>${fmtOps(s.upstream?.ops)}${marks(s.upstream)}</td><td style="background:${ratioBg(s.vs?.verdict === 'invalid' ? null : s.vs?.ratio)}">${vPill(s.vs)}</td>`;
+      }).join('') + `<td>${fmtX(c.scale)}</td></tr>`;
+  }
+  $('cellTable').innerHTML = h + '</tbody></table>';
+  $('cellTable').querySelectorAll('tr[data-id]').forEach((tr) => tr.onclick = () => { select(tr.dataset.id); $('detail').scrollIntoView({ behavior: 'smooth' }); });
+}
+
+function select(id) {
+  sel = id; const c = BYID[id];
+  $('detTitle').textContent = `${fam(c.family)} · pipeline ${c.P}`;
+  $('detSub').textContent = `${c.desc}; ${c.conns.toLocaleString()} connections.`;
+  const rows = [];
+  for (const sz of SZ) for (const b of BK) {
+    const s = c.sizes[sz]?.[b];
+    rows.push(`<tr><td>${D.sizes[sz].label}</td><td>${LBL[b]}</td><td>${s ? s.iot : '–'}</td><td><b>${fmtOps(s?.ops)}</b>${marks(s)}</td><td class="mut">${s ? s.reps.map(fmtOps).join(' · ') : '–'}</td>` +
+      `<td>${fmtMs(s?.p50)} / ${fmtMs(s?.p99)} / ${fmtMs(s?.p999)}</td><td>${fmtPct(s?.cpu_main)}</td><td>${s?.cpu_total == null ? '–' : s.cpu_total.toFixed(2)}</td>` +
+      `<td>${s?.lag_max_mb == null ? '–' : s.lag_max_mb + ' MB'}</td></tr>`);
+  }
+  $('detTable').innerHTML = '<table><thead><tr><th>instance</th><th>build</th><th>io-threads</th><th>ops/s (median)</th><th>reps</th><th>p50 / p99 / p99.9 ms</th><th>main CPU</th><th>CPUs busy</th><th>replica lag max</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>' +
+    (c.sizes.large?.vs || c.sizes.xlarge?.vs ? `<div class="mut" style="margin-top:6px">prefetch ÷ upstream: ${SZ.map((sz) => `${D.sizes[sz].label} ${vPill(c.sizes[sz]?.vs)}`).join(' · ')}</div>` : '');
+  renderTable();
+}
+
+function renderCal() {
+  const best = {};
+  for (const r of D.calibration) {
+    const k = r.size + r.build, g = gm([r['get-p16'], r['set-p16'], r['r80w20-p1']]);
+    r._g = g; if (!best[k] || g > best[k]._g) best[k] = r;
+  }
+  $('calTable').innerHTML = '<table><thead><tr><th>instance</th><th>build</th><th>layout</th><th>io-threads</th><th>GET P16</th><th>SET P16</th><th>80/20 P1</th><th></th></tr></thead><tbody>' +
+    D.calibration.map((r) => `<tr><td>${D.sizes[r.size].label}</td><td>${LBL[r.build]}</td><td style="white-space:normal">${esc(r.desc)}</td><td>${r.iot ?? '–'}</td>` +
+      `<td>${fmtOps(r['get-p16'])}</td><td>${fmtOps(r['set-p16'])}</td><td>${fmtOps(r['r80w20-p1'])}</td><td>${best[r.size + r.build] === r ? '<span class="pill win">used</span>' : ''}</td></tr>`).join('') + '</tbody></table>';
+}
+
+function renderMethod() {
+  const m = D.method;
+  const lay = SZ.map((sz) => `${D.sizes[sz].label}: prefetch ${D.layouts[sz].new}; upstream ${D.layouts[sz].upstream}`).join('<br>');
+  $('meth').innerHTML = [['hardware', m.hardware], ['build', m.build], ['layout', m.layout], ['layouts used', lay], ['client', m.client], ['run', m.run]]
+    .map(([k, v]) => `<dt>${k}</dt><dd>${k === 'layouts used' ? v : esc(v)}</dd>`).join('');
+  $('notes').innerHTML = m.notes.map((n) => `<li>${esc(n)}</li>`).join('');
+}
+
+function seg(id, opts, cur, fn) {
+  $(id).innerHTML = opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v == cur ? 'on' : ''}">${l}</button>`).join('');
+  $(id).querySelectorAll('button').forEach((b) => b.onclick = () => { $(id).querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); fn(+b.dataset.v); });
+}
+
+fetch('data/perf.json').then((r) => r.json()).then((d) => {
+  D = d;
+  CELLS = d.cells.slice().sort((a, b) => a.tier - b.tier || famOrder.indexOf(a.family) - famOrder.indexOf(b.family) || a.P - b.P);
+  CELLS.forEach((c) => BYID[c.id] = c);
+  seg('tierSeg', [[0, 'all'], [1, 'strings'], [2, 'data types'], [3, 'other'], [4, 'replica']], 0, (v) => { TIER_SEL = v; renderTable(); });
+  renderSummary(); renderCal(); renderMethod(); select(CELLS[0].id);
+});
+</script>
+</body>
+</html>
