@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>offbench · superset vs Dragonfly v2.0.2 vs upstream, 2-25 cores (corrected)</title>
+<title>offbench · superset vs Dragonfly v2.0.2 vs upstream, 2-16 cores</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
@@ -184,7 +184,7 @@ function renderTable() {
     const c = cell(n, w, P);
     if (!c) continue;
     h += `<tr><td>${n}</td><td>${WLN[w]}</td><td>${P}</td>` + ARMS.map((a) => `<td>${v(c[a])}</td>`).join('') +
-      `<td>${c.conns ?? (P === 1 ? 9600 : 2304)}</td><td>${pill(c.ss_vs_df, c.ss_vs_df_verdict)}</td><td>${pill(c.ss_vs_up, c.ss_vs_up_verdict)}</td><td>${pill(c.df_vs_up, c.df_vs_up_verdict)}</td></tr>`;
+      `<td>${c.conns}</td><td>${pill(c.ss_vs_df, c.ss_vs_df_verdict)}</td><td>${pill(c.ss_vs_up, c.ss_vs_up_verdict)}</td><td>${pill(c.df_vs_up, c.df_vs_up_verdict)}</td></tr>`;
   }
   $('cellTable').innerHTML = h + '</tbody></table>';
 }
@@ -218,13 +218,6 @@ function seg(id, opts, key, after) {
 fetch('data/perf.json').then((r) => r.json()).then((d) => {
   D = d; S.view = d.views[0].id;
   $('correction').innerHTML = d.correction;
-  const vs = $('viewSeg');
-  vs.innerHTML = d.views.map((v) => `<button type="button" aria-pressed="${v.id === S.view}" class="${v.id === S.view ? 'on' : ''}">${esc(v.tab)}</button>`).join('');
-  vs.querySelectorAll('button').forEach((b, k) => b.onclick = () => {
-    S.view = d.views[k].id;
-    vs.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
-    setView(S.view);
-  });
   seg('pSeg', [[1, '1'], [16, '16']], 'P');
   seg('metSeg', [['mops', 'throughput'], ['p99', 'p99 latency']], 'met');
   seg('wlSeg', WL.map((w) => [w, WLN[w]]), 'wl');
@@ -236,7 +229,7 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
 <body>
 <div class="top">
 <header>
-  <h1>Superset vs Dragonfly v2.0.2 vs upstream Valkey, 2 to 25 cores</h1>
+  <h1>Superset vs Dragonfly v2.0.2 vs upstream Valkey, 2 to 16 cores</h1>
   <span class="builds" id="buildLine"></span>
   <nav>
     <a href="#charts">Charts</a><a href="#scaling">Scaling</a><a href="#ratios">Ratios</a><a href="#table">Table</a><a href="#method">Method</a>
@@ -251,8 +244,6 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
 </section>
 
 <section id="views">
-  <h2>Connection shape</h2>
-  <div class="controls"><div class="seg" id="viewSeg"></div></div>
   <div class="sub" id="viewSub"></div>
 </section>
 
