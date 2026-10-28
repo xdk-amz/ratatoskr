@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>offbench · superset vs Dragonfly v2.0.2 vs upstream, 2-16 cores</title>
+<title>offbench · superset vs Dragonfly v2.0.2 vs upstream, 2-25 cores (corrected)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
@@ -23,6 +23,7 @@
     --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
     --ob-ss: #6ea8fe;
     --ob-lp: #a371f7;
+    --ob-fr: #db61a2;
     --ob-df: #3fb9a0;
     --ob-up: #f0883e;
   }
@@ -71,15 +72,18 @@
   .hm th.grp { text-align: center; color: var(--ob-text-strong); text-transform: none; font-size: 11.5px; border-bottom: 1px solid var(--ob-border); }
   .hm td.c { width: 62px; height: 26px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 4px; color: var(--ob-text-strong); }
   .hm td.c.nic { color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .corr { border-color: var(--ob-warn); background: var(--ob-warn-subtle); color: var(--ob-text); }
+  .corr b { color: var(--ob-text-strong); }
   dl.meth { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; } dl.meth dt { color: var(--ob-muted); } dl.meth dd { margin: 0; }
 </style>
 </head>
 <script>
 const WL = ['get', 'set', 'r80w20', 'sismember', 'hset', 'mget10', 'mset10'];
 const WLN = { get: 'GET', set: 'SET', r80w20: '80/20', sismember: 'SISMEMBER', hset: 'HSET', mget10: 'MGET 10', mset10: 'MSET 10' };
-const ARMS = ['ss', 'lp', 'df', 'up'];
-const COL = { ss: 'var(--ob-ss)', lp: 'var(--ob-lp)', df: 'var(--ob-df)', up: 'var(--ob-up)' };
-const CORES = [2, 4, 8, 16];
+let ARMS = ['ss', 'lp', 'df', 'up'];
+const COL = { ss: 'var(--ob-ss)', fr: 'var(--ob-fr)', lp: 'var(--ob-lp)', df: 'var(--ob-df)', up: 'var(--ob-up)' };
+let CORES = [2, 4, 8, 16], V;
+const CL = (n) => (V.core_labels[n] || `${n} cores`);
 const MET = { mops: 'throughput (M ops/s)', p99: 'p99 latency (ms)' };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -87,7 +91,7 @@ const fM = (v) => v == null ? '–' : v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixe
 const fX = (v) => v == null ? '–' : v.toFixed(2) + 'x';
 const fMs = (v) => v == null ? '–' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
 let D, S = { cores: 2, P: 16, met: 'mops', wl: 'set' };
-const cell = (n, wl, P) => D.cells.find((c) => c.cores === n && c.workload === wl && c.P === P);
+const cell = (n, wl, P) => V.cells.find((c) => c.cores === n && c.workload === wl && c.P === P);
 function ratioBg(r) {
   if (r == null) return 'transparent';
   const d = Math.log2(r), a = Math.min(1, Math.abs(d) * 0.8) * 0.67 + 0.08;
@@ -131,11 +135,12 @@ function chart() {
 function scale(P) {
   const W = 540, H = 260, L = 46, R = 70, T = 14, B = 30;
   const cs = CORES.map((n) => cell(n, S.wl, P));
+  if (cs.some((c) => !c)) return '<div class="mut">not measured</div>';
   const max = Math.max(...cs.flatMap((c) => ARMS.map((a) => c[a].mops))) * 1.1;
   const x = (i) => L + (W - L - R) * i / (CORES.length - 1), y = (v) => T + (H - T - B) * (1 - v / max);
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${WLN[S.wl]} P${P} throughput by cores">`;
   for (let i = 0; i <= 4; i++) { const v = max * i / 4; s += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fM(v)}</text>`; }
-  CORES.forEach((n, i) => { s += `<text x="${x(i)}" y="${H - B + 16}" text-anchor="middle">${n} cores</text>`; });
+  CORES.forEach((n, i) => { s += `<text x="${x(i)}" y="${H - B + 16}" text-anchor="middle">${esc(CL(n))}</text>`; });
   for (const a of ARMS) {
     const pts = cs.map((c, i) => `${x(i)},${y(c[a].mops)}`).join(' ');
     s += `<polyline points="${pts}" fill="none" stroke="${COL[a]}" stroke-width="2"/>`;
@@ -147,13 +152,15 @@ function scale(P) {
 
 function renderCharts() {
   $('legend').innerHTML = ARMS.map((a) => `<span><i class="sw" style="background:${COL[a]}"></i>${esc(D.builds[a].label)}</span>`).join('');
-  $('cTitle').textContent = `${S.cores} cores, pipeline ${S.P}: ${MET[S.met]}`;
+  const lay = V.layouts[String(S.cores)] || {};
+  $('cTitle').textContent = `${CL(S.cores)}, pipeline ${S.P}: ${MET[S.met]}`;
+  $('cLay').textContent = `Layout: Valkey ${lay.valkey || '?'}; Dragonfly ${lay.df || '?'}`;
   $('chart').innerHTML = chart();
-  for (const P of [1, 16]) { $('sP' + P).textContent = `${WLN[S.wl]}, pipeline ${P}: M ops/s`; $('scale' + P).innerHTML = scale(P); }
+  for (const P of [1, 16]) { $('sP' + P).textContent = `${WLN[S.wl]}, pipeline ${P}: M ops/s`; $('scaleP' + P).innerHTML = scale(P); }
 }
 
 function heat(key) {
-  let h = '<table class="hm"><thead><tr><th></th>' + [1, 16].map((P) => `<th class="grp" colspan="4">P${P}</th>`).join('') + '</tr><tr><th></th>' +
+  let h = '<table class="hm"><thead><tr><th></th>' + [1, 16].map((P) => `<th class="grp" colspan="${CORES.length}">P${P}</th>`).join('') + '</tr><tr><th></th>' +
     [1, 16].map(() => CORES.map((n) => `<th>${n} cores</th>`).join('')).join('') + '</tr></thead><tbody>';
   for (const w of WL) {
     h += `<tr><td>${WLN[w]}</td>`;
@@ -172,20 +179,31 @@ function renderTable() {
   const pill = (r, vd) => `<span class="pill ${vd}">${fX(r)}</span>`;
   let h = '<table><thead><tr><th>cores</th><th>workload</th><th>P</th>' +
     ARMS.map((a) => `<th>${esc(D.builds[a].label)} M ops/s (p50 / p99 ms)</th>`).join('') +
-    '<th>÷ Dragonfly</th><th>÷ upstream</th></tr></thead><tbody>';
+    '<th>conns</th><th>superset ÷ Dragonfly</th><th>superset ÷ upstream</th><th>Dragonfly ÷ upstream</th></tr></thead><tbody>';
   for (const n of CORES) for (const P of [1, 16]) for (const w of WL) {
     const c = cell(n, w, P);
     if (!c) continue;
     h += `<tr><td>${n}</td><td>${WLN[w]}</td><td>${P}</td>` + ARMS.map((a) => `<td>${v(c[a])}</td>`).join('') +
-      `<td>${pill(c.ss_vs_df, c.ss_vs_df_verdict)}</td><td>${pill(c.ss_vs_up, c.ss_vs_up_verdict)}</td></tr>`;
+      `<td>${c.conns ?? (P === 1 ? 9600 : 2304)}</td><td>${pill(c.ss_vs_df, c.ss_vs_df_verdict)}</td><td>${pill(c.ss_vs_up, c.ss_vs_up_verdict)}</td><td>${pill(c.df_vs_up, c.df_vs_up_verdict)}</td></tr>`;
   }
   $('cellTable').innerHTML = h + '</tbody></table>';
 }
 
 function renderMethod() {
-  const rows = [['run', `${D.run}, ${D.date}`], ...Object.values(D.builds).map((b) => [b.label, b.commit]), ...Object.entries(D.instances), ['method', D.method]];
+  const lays = CORES.map((n) => [`layout, ${CL(n)}`, `Valkey: ${V.layouts[String(n)].valkey}; Dragonfly: ${V.layouts[String(n)].df}`]);
+  const rows = [['run', `${V.run}, ${V.date}`], ...ARMS.map((a) => [D.builds[a].label, D.builds[a].commit]), ...Object.entries(V.instances), ...lays, ['method', V.method]];
   $('meth').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
-  $('cav').innerHTML = D.caveats.map((c) => `<li>${esc(c)}</li>`).join('');
+  $('cav').innerHTML = V.caveats.map((c) => `<li>${esc(c)}</li>`).join('');
+}
+
+function setView(id) {
+  V = D.views.find((v) => v.id === id); ARMS = V.arms; CORES = V.cores;
+  if (!CORES.includes(S.cores)) S.cores = CORES[0];
+  $('buildLine').textContent = ARMS.map((a) => `${D.builds[a].label} ${D.builds[a].commit.split(' ')[0]}`).join(' · ');
+  $('viewSub').textContent = V.method.split('. ')[0] + '.';
+  seg('coreSeg', CORES.map((n) => [n, String(n)]), 'cores');
+  renderCharts(); $('hmDf').innerHTML = heat('ss_vs_df'); $('hmUp').innerHTML = heat('ss_vs_up'); $('hmDfUp').innerHTML = heat('df_vs_up');
+  renderTable(); renderMethod();
 }
 
 function seg(id, opts, key, after) {
@@ -198,13 +216,19 @@ function seg(id, opts, key, after) {
 }
 
 fetch('data/perf.json').then((r) => r.json()).then((d) => {
-  D = d;
-  $('buildLine').textContent = ARMS.map((a) => `${d.builds[a].label} ${d.builds[a].commit.split(' ')[0]}`).join(' · ');
-  seg('coreSeg', CORES.map((n) => [n, String(n)]), 'cores');
+  D = d; S.view = d.views[0].id;
+  $('correction').innerHTML = d.correction;
+  const vs = $('viewSeg');
+  vs.innerHTML = d.views.map((v) => `<button type="button" aria-pressed="${v.id === S.view}" class="${v.id === S.view ? 'on' : ''}">${esc(v.tab)}</button>`).join('');
+  vs.querySelectorAll('button').forEach((b, k) => b.onclick = () => {
+    S.view = d.views[k].id;
+    vs.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    setView(S.view);
+  });
   seg('pSeg', [[1, '1'], [16, '16']], 'P');
   seg('metSeg', [['mops', 'throughput'], ['p99', 'p99 latency']], 'met');
   seg('wlSeg', WL.map((w) => [w, WLN[w]]), 'wl');
-  renderCharts(); $('hmDf').innerHTML = heat('ss_vs_df'); $('hmUp').innerHTML = heat('ss_vs_up'); renderTable(); renderMethod();
+  setView(S.view);
 });
 </script>
 </body>
@@ -212,7 +236,7 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
 <body>
 <div class="top">
 <header>
-  <h1>Superset vs Dragonfly v2.0.2 vs upstream Valkey, 2 to 16 cores</h1>
+  <h1>Superset vs Dragonfly v2.0.2 vs upstream Valkey, 2 to 25 cores</h1>
   <span class="builds" id="buildLine"></span>
   <nav>
     <a href="#charts">Charts</a><a href="#scaling">Scaling</a><a href="#ratios">Ratios</a><a href="#table">Table</a><a href="#method">Method</a>
@@ -222,6 +246,16 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
 </div>
 <main>
 
+<section id="correction-sec">
+  <div class="card corr" id="correction"></div>
+</section>
+
+<section id="views">
+  <h2>Connection shape</h2>
+  <div class="controls"><div class="seg" id="viewSeg"></div></div>
+  <div class="sub" id="viewSub"></div>
+</section>
+
 <section id="charts">
   <h2>Throughput by workload</h2>
   <div class="controls">
@@ -230,7 +264,7 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
     <div class="g"><span>metric</span><div class="seg" id="metSeg"></div></div>
   </div>
   <div class="legend" id="legend"></div>
-  <div class="card"><h3 id="cTitle"></h3><div id="chart"></div></div>
+  <div class="card"><h3 id="cTitle"></h3><div class="sub" id="cLay"></div><div id="chart"></div></div>
 </section>
 
 <section id="scaling">
@@ -245,11 +279,12 @@ fetch('data/perf.json').then((r) => r.json()).then((d) => {
 </section>
 
 <section id="ratios">
-  <h2>Superset ÷ Dragonfly and ÷ upstream</h2>
+  <h2>Ratios: superset ÷ Dragonfly, superset ÷ upstream, Dragonfly ÷ upstream</h2>
   <div class="sub">E: NIC bandwidth allowance exceeded on the superset arm, so the cell is a floor. Colored: medians more than 5% apart with no rep overlap; uncolored: tie.</div>
   <div class="grid2">
-    <div class="card"><h3>÷ Dragonfly v2.0.2</h3><div id="hmDf"></div></div>
-    <div class="card"><h3>÷ upstream</h3><div id="hmUp"></div></div>
+    <div class="card"><h3>superset ÷ Dragonfly v2.0.2</h3><div id="hmDf"></div></div>
+    <div class="card"><h3>superset ÷ upstream</h3><div id="hmUp"></div></div>
+    <div class="card"><h3>Dragonfly v2.0.2 ÷ upstream</h3><div id="hmDfUp"></div></div>
   </div>
 </section>
 
