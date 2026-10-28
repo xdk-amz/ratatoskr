@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>offbench · replica write throughput over one replication link</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-warn: var(--warn, #d29922);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
+    --ob-ff: #6ea8fe;
+    --ob-up: #f0883e;
+    --ob-om: #a371f7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header .builds { color: var(--ob-muted); font-size: 12px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 96px; }
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; color: var(--ob-text-strong); }
+  h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12px; margin-bottom: 10px; max-width: 1100px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  .seg button:focus-visible { outline: 2px solid var(--ob-text-strong); outline-offset: -2px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child { text-align: left; }
+  td.l, th.l { text-align: left; white-space: normal; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; border: 1px solid var(--ob-border); white-space: nowrap; }
+  .pill.pri { background: var(--ob-warn-subtle); color: var(--ob-warn); border-color: transparent; }
+  .pill.rep { background: var(--ob-danger-subtle); color: var(--ob-danger); border-color: transparent; }
+  .pill.net { background: rgba(163,113,247,.15); color: var(--ob-om); border-color: transparent; }
+  .pill.ok { background: var(--ob-ok-subtle); color: var(--ob-ok); border-color: transparent; }
+  .callout { border-left: 3px solid var(--ob-danger); background: var(--ob-danger-subtle); padding: 8px 12px; border-radius: 6px; margin: 10px 0; max-width: 1100px; }
+  .answer { font-size: 13.5px; max-width: 1100px; }
+  .answer p { margin: 6px 0; }
+  ul.tight { margin: 4px 0; padding-left: 18px; max-width: 1100px; }
+  ul.tight li { margin: 3px 0; }
+  code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ob-bg); padding: 0 4px; border-radius: 4px; }
+  svg text { fill: var(--ob-muted); font-size: 11px; font-family: inherit; }
+  svg text.v { fill: var(--ob-text); font-size: 10px; }
+  svg line.ax { stroke: var(--ob-border); }
+  svg line.grid { stroke: var(--ob-border); stroke-dasharray: 2 3; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ob-muted); margin-top: 6px; }
+  .tip { position: fixed; pointer-events: none; background: var(--ob-bg-elevated); color: var(--ob-text); border: 1px solid var(--ob-border); border-radius: 6px; padding: 6px 8px; font-size: 11.5px; z-index: 10; display: none; max-width: 360px; }
+  #status { color: var(--ob-muted); }
+</style>
+</head>
+<body>
+<div class="top">
+<header>
+  <h1>Replica write throughput over one replication link</h1>
+  <span class="builds" id="buildLine"></span>
+  <nav>
+    <a href="#answer">Answer</a><a href="#limits">What limits it</a><a href="#ladder">Step-up charts</a><a href="#small">Smaller replica</a><a href="#table">Full table</a><a href="#method">Method</a>
+    <a href="../../">Benchmarks</a>
+  </nav>
+</header>
+</div>
+<main>
+<p id="status">Loading data…</p>
+
+<section id="answer">
+  <h2>Can a replica keep up with a primary's full write rate over one connection?</h2>
+  <div class="answer">
+    <p><b>No, not in general.</b> For small writes the replica keeps up with everything the primary does, but only because attaching a replica costs the primary itself 30-45% of its rate: the primary's main thread spends about 36% of its time building the replication stream. For 512 B values the replica's own read and apply path is the limit, and for 4 KB values the single TCP connection caps the stream at about 1.17 GB/s on both builds.</p>
+  </div>
+  <div class="callout"><b>Regression on superset-frontier: MSET of 10.</b> Frontier's replica applies MSET on its main thread (92% busy, IO threads ~19%) at 167 MB/s, against upstream's 278 MB/s. It keeps up only to 165k/s at pipeline 16 (0.24 of its primary's max), against upstream's 271k/s. The idle IO threads suggest parallel apply does not cover MSET; a replica-side profile was not taken.</div>
+  <div class="controls">
+    <div class="g"><span>Pipeline</span><div class="seg" id="segPipe"></div></div>
+    <div class="g"><span>io-threads</span><div class="seg" id="segIot"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Max write rate with the replica keeping up vs the primary's no-replica max</h3><div id="barChart"></div>
+      <div class="legend"><span><span class="sw" style="background:var(--ob-up)"></span>upstream</span><span><span class="sw" style="background:var(--ob-ff)"></span>frontier</span><span>faint bar = primary max with no replica; solid = max rate the replica keeps up with (3/3 reps)</span></div></div>
+    <div class="card"><h3>Headline table</h3><div id="headTable"></div></div>
+  </div>
+</section>
+
+<section id="limits">
+  <h2>What limits each one</h2>
+  <div class="sub">Thread CPU is the mean over the passing holds at the limit (100% = one CPU). Send-Q is the primary's replication socket, Recv-Q the replica's, both the max of 1 s samples. "Catch-up apply" is the replica's apply rate while it works off a backlog after being paused: it is the replica's apply ceiling, or the link's when the link is slower. Same pipeline / io-threads selection as above.</div>
+  <div class="card"><div id="limitTable"></div></div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card"><h3>How much of the primary's main thread goes to feeding the replica</h3>
+      <div class="controls"><div class="g"><span>Profile</span><div class="seg" id="segPerf"></div></div></div>
+      <div id="perfChart"></div>
+      <div class="legend"><span><span class="sw" style="background:var(--ob-muted);opacity:.45"></span>primary alone</span><span><span class="sw" style="background:var(--ob-danger)"></span>replica attached, at the attached limit</span><span>inclusive % of main-thread samples (perf, call graph)</span></div></div>
+    <div class="card"><h3>Reading the evidence</h3>
+      <ul class="tight">
+        <li><span class="pill pri">primary main</span> The primary's main thread is at ~100% while the replica keeps up, and attaching the replica alone takes 30-45% off its rate. In the upstream profile <code>propagateNow</code> / <code>replicationFeedReplicas</code> take ~36% inclusive, mostly growing and copying the stream buffer (<code>_sdsMakeRoomFor</code>, <code>sdscatlen</code>, <code>zrealloc_usable</code>, <code>memcpy</code>). The replication socket queues stay small.</li>
+        <li><span class="pill net">single TCP connection</span> Every SET 4 KB catch-up probe, on both builds, and frontier's SET 512 B probes apply at exactly 1,192 MB/s (9.5 Gbps) while no replica thread is saturated. At the SET 4 KB limit the stream is 1.14-1.17 GB/s and the primary's Send-Q holds 3-4 MB. The NIC's aggregate limit is far away; 10 Gbps is the EC2 per-flow cap inside a cluster placement group.</li>
+        <li><span class="pill rep">replica</span> Upstream's replica reads the whole link on one IO thread (100% in every io-threads-on cell); at SET 512 B its main thread is at 95% and its catch-up rate equals its keep-up limit. Frontier's SET 512 B limit is replica-side (a 4-core replica lowers it, the primary is unchanged) but no single thread is pinned. Frontier's MSET limit is its main thread.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section id="ladder">
+  <h2>Step-up rate vs replication lag and output buffer</h2>
+  <div class="sub">Open-loop fixed-rate holds of 60 s, stepped up ×1.25 toward the primary's max, then bisected. "Lag" is the offset gap: <code>master_repl_offset</code> on the primary minus the replica's processed offset, in bytes. "Output buffer" is the primary's output buffer for the replica (<code>omem</code>); the soft limit is 64 MB for 60 s, the hard limit 256 MB. A failing step shows a growing gap, a growing buffer, then a disconnect and a full resync. Only cells where the replica fell behind at some rate are listed. The gap carries ±a few MB of noise from aligning two hosts' sample clocks.</div>
+  <div class="controls">
+    <div class="g"><span>Cell</span><div class="seg" id="segCell"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Max lag and max output buffer per step</h3><div id="ladChart"></div>
+      <div class="legend"><span><span class="sw" style="background:var(--ob-ok)"></span>kept up</span><span><span class="sw" style="background:var(--ob-danger)"></span>fell behind</span><span>circle = max lag, square = max output buffer; click a point to show its seconds</span></div></div>
+    <div class="card"><h3 id="tsTitle">Per-second lag and output buffer</h3><div id="tsChart"></div>
+      <div class="legend"><span><span class="sw" style="background:var(--ob-accent)"></span>lag (offset gap)</span><span><span class="sw" style="background:var(--ob-om)"></span>output buffer</span><span>dashed = 64 MB soft limit; red ticks = replica disconnected</span></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div id="ladTable"></div></div>
+</section>
+
+<section id="small">
+  <h2>Smaller replica</h2>
+  <div class="sub">Same 8-core primary; the replica shrunk to 4 cores (<code>irq, main, io, aux</code>, io-threads 2). io-threads on, pipeline 16. Upstream's replica uses only one IO thread and main, so it loses nothing; frontier's parallel apply does use the extra cores, so it loses 21-25% but still matches or beats an 8-core upstream replica.</div>
+  <div class="card"><div id="smallTable"></div></div>
+</section>
+
+<section id="table">
+  <h2>Full table</h2>
+  <div class="sub">All 48 cells, 8-core primary and replica. Mean ± CI95 over 3 reps (t distribution). "fixed-rate" means the replica fell behind at saturation and the value is the highest open-loop rate it kept up with in 3/3 holds; otherwise it kept up at attached saturation.</div>
+  <div class="card"><div id="fullTable"></div></div>
+</section>
+
+<section id="method">
+  <h2>Method and caveats</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Builds</h3>
+      <div id="buildTable"></div>
+      <h3 style="margin-top:12px">Hosts and core layout</h3>
+      <ul class="tight">
+        <li>c8g.metal-24xl (Graviton4), us-east-1c, one cluster placement group. Each rig is three hosts: a load generator, a primary and a replica, with one standard replication link (a single TCP connection) between them. Three rigs ran in parallel; every cell ran on one rig.</li>
+        <li><b>8 cores per server</b>, primary and replica identical. Cores are total CPUs the server may run on (NIC IRQs, main, IO threads and housekeeping), not main + IO threads.
+          <ul class="tight">
+            <li>io-threads on: <code>3x irq, main, 3x io, aux</code> (io-threads 4).</li>
+            <li>io-threads off: <code>3x irq, main, 4x aux</code>.</li>
+            <li>Smaller-replica variant: 4-core replica <code>irq, main, io, aux</code> (io-threads 2).</li>
+          </ul>
+          NIC IRQs are spread over the <code>irq</code> CPUs; bio and jemalloc threads go to <code>aux</code>; each thread is pinned and checked.</li>
+        <li>Replication: <code>client-output-buffer-limit replica 256mb 64mb 60</code>, <code>repl-backlog-size 10mb</code>, diskless sync, <code>repl-disable-tcp-nodelay no</code>, no compression.</li>
+        <li>Load: memtier_benchmark, 32 threads × 16 clients = 512 connections, 1M-key random keyspace. SET 64 B / 512 B / 4 KB; HSET (64 B value); "INCR mix" = INCR + HINCRBY 1:1; MSET of 10 keys × 64 B. Pipeline 1 and 16. Rates are commands/s (one MSET = one command).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Per cell (build × workload × pipeline × io-threads)</h3>
+      <ol class="tight">
+        <li><b>Primary max</b>: primary alone, closed-loop saturation, 3 × 20 s.</li>
+        <li><b>Attached</b>: replica attached and caught up, then closed-loop saturation, 3 × 60 s.</li>
+        <li>If the replica fell behind at saturation: <b>open-loop fixed-rate</b> steps (×1.25) from the last passing rate toward the primary max, 60 s holds, two bisections, then the highest passing rate held 3 × 60 s and the first failing rate 2 × 60 s.</li>
+        <li><b>Catch-up probe</b>: replica paused during a 25 s saturating load, then resumed; its apply rate while catching up (3 reps).</li>
+      </ol>
+      <p><b>Keeps up</b> = over a 60 s hold the offset gap does not grow (slope &lt; 0.5% of the stream rate) and ends small, the primary's output buffer for the replica does not trend up, the replica is never disconnected and never full-resyncs, and the primary serves ≥ 90% of the offered rate. Offsets, lag in bytes and seconds, output buffer, per-thread CPU, socket queues and NIC counters were sampled every second on both nodes.</p>
+      <h3>Caveats</h3>
+      <ul class="tight">
+        <li><b>Frontier MSET of 10 is a regression</b> (see the callout above): its replica is slower than upstream's on this workload, so frontier replica numbers should not be quoted for multi-key writes until it is fixed.</li>
+        <li>The 10 Gbps single-connection cap is the EC2 per-flow limit inside a cluster placement group. Outside one the per-flow limit is 5 Gbps, so the SET 4 KB ceilings would roughly halve.</li>
+        <li>Frontier SET 64 B, pipeline 16, io-threads on: the replica kept up at full saturation (~2.87M/s) in 2 of 3 reps; the third had one disconnected sample, so the table uses 2.63M/s, the highest rate that passed all 3.</li>
+        <li>Frontier SET 512 B, pipeline 16: the limit is on the replica side, but which part of the frontier replica (IO hand-off vs apply lanes) is the long pole was not isolated.</li>
+        <li>The first sweep sized its fixed-rate steps from the attached saturation rate, which a resync storm drags down, and under-stated 8 cells. Those cells were re-run with the ladder above; the tables use the re-runs, and the step charts show both.</li>
+        <li>superset-new-prefetch was not run.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+'use strict';
+const WL = ['set64', 'set512', 'set4k', 'hset', 'incr', 'mset10'];
+const WLN = { set64: 'SET 64 B', set512: 'SET 512 B', set4k: 'SET 4 KB', hset: 'HSET', incr: 'INCR mix', mset10: 'MSET of 10' };
+const BN = { up: 'upstream', ff: 'frontier' };
+const BC = { up: 'var(--ob-up)', ff: 'var(--ob-ff)' };
+const S = { pipe: 16, iot: 'on', perf: 'up-set64-16-on', cell: null, step: null };
+let D = null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function fR(n) { if (n == null) return '-'; const a = Math.abs(n); return a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n)); }
+function fCI(m, h) { if (m == null) return '-'; if (!h) return fR(m); const u = Math.abs(m) >= 1e6 ? 1e6 : 1e3; const s = u === 1e6 ? (h / u).toFixed(2) + 'M' : Math.round(h / u) + 'k'; return fR(m) + ' <span class="mut">±' + s + '</span>'; }
+const fMB = (b) => b == null ? '-' : (b / 1048576).toFixed(b >= 10485760 ? 0 : 1);
+const fMBs = (b) => b == null ? '-' : Math.round(b / 1e6).toLocaleString();
+const fP = (v) => v == null ? '-' : Math.round(v) + '%';
+const cellOf = (b, wl, p, io) => D.summary.find((r) => r.build === b && r.wl === wl && r.pipe === p && r.iot === io);
+
+function verdict(r) {
+  const on = r.iot === 'on';
+  if (on && r.wl === 'set4k') return ['net', 'single TCP connection'];
+  if (on && r.build === 'ff' && r.wl === 'mset10') return ['rep', 'replica main-thread apply'];
+  if (on && r.pipe === 16 && r.wl === 'set512') return ['rep', r.build === 'up' ? 'replica apply + its one IO reader' : 'replica side, no single thread pinned'];
+  if (on && r.pipe === 16 && r.build === 'ff' && r.wl === 'set64') return ['pri', 'primary (staged loop at saturation)'];
+  if (on && r.pipe === 16 && r.build === 'up' && r.wl === 'mset10') return ['pri', 'primary main, replica close behind'];
+  if (r.kind === 'attached-sat') return ['pri', 'primary main thread'];
+  return ['rep', 'replica'];
+}
+const vPill = (r) => { const [c, t] = verdict(r); return `<span class="pill ${c}">${esc(t)}</span>`; };
+
+function seg(id, opts, cur, on) {
+  $(id).innerHTML = opts.map(([v, l]) => `<button type="button" data-v="${esc(v)}" class="${String(v) === String(cur) ? 'on' : ''}" aria-pressed="${String(v) === String(cur)}">${esc(l)}</button>`).join('');
+  $(id).onclick = (e) => { const b = e.target.closest('button'); if (b) on(b.dataset.v); };
+}
+const tip = $('tip');
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = 'block'; tip.style.left = Math.min(e.clientX + 12, innerWidth - 370) + 'px'; tip.style.top = (e.clientY + 12) + 'px'; }
+function hideTip() { tip.style.display = 'none'; }
+function bindTips(root) {
+  root.querySelectorAll('[data-tip]').forEach((el) => {
+    el.addEventListener('mousemove', (e) => showTip(e, el.dataset.tip));
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
+function barChart() {
+  const W = 680, L = 92, R = 120, rowH = 17, gap = 10;
+  const rows = [];
+  WL.forEach((wl) => ['up', 'ff'].forEach((b) => { const r = cellOf(b, wl, S.pipe, S.iot); if (r) rows.push(r); }));
+  const H = 24 + WL.length * (2 * rowH + gap);
+  const mx = Math.max(...rows.map((r) => r.pmax || 0)) * 1.02;
+  const x = (v) => L + (W - L - R) * v / mx;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Max rate the replica keeps up with, pipeline ${S.pipe}, io-threads ${S.iot}">`;
+  for (let i = 0; i <= 4; i++) { const v = mx * i / 4; s += `<line class="grid" x1="${x(v)}" x2="${x(v)}" y1="14" y2="${H - 4}"/><text x="${x(v)}" y="10" text-anchor="middle">${fR(v)}</text>`; }
+  let y = 20;
+  WL.forEach((wl) => {
+    s += `<text x="0" y="${y + rowH + 4}" style="fill:var(--ob-text)">${WLN[wl]}</text>`;
+    ['up', 'ff'].forEach((b) => {
+      const r = cellOf(b, wl, S.pipe, S.iot); if (!r) { y += rowH; return; }
+      const t = `<b>${BN[b]} ${WLN[wl]}</b><br>primary max ${fR(r.pmax)}/s<br>replica keeps up to ${fR(r.keep)}/s = ${r.frac.toFixed(2)} of max<br>limit: ${verdict(r)[1]}`;
+      s += `<g data-tip="${esc(t)}"><rect x="${L}" y="${y + 2}" width="${x(r.pmax) - L}" height="${rowH - 4}" fill="${BC[b]}" opacity=".22" rx="2"/>`;
+      s += `<rect x="${L}" y="${y + 2}" width="${x(r.keep) - L}" height="${rowH - 4}" fill="${BC[b]}" rx="2"/>`;
+      s += `<text class="v" x="${x(r.pmax) + 5}" y="${y + rowH - 4}">${fR(r.keep)} · ${r.frac.toFixed(2)}</text></g>`;
+      y += rowH;
+    });
+    y += gap;
+  });
+  $('barChart').innerHTML = s + '</svg>';
+  bindTips($('barChart'));
+}
+
+function headTable() {
+  let h = '<table><thead><tr><th>workload</th><th>upstream keeps up to</th><th>frontier keeps up to</th><th class="l">limit (upstream / frontier)</th></tr></thead><tbody>';
+  WL.forEach((wl) => {
+    const u = cellOf('up', wl, S.pipe, S.iot), f = cellOf('ff', wl, S.pipe, S.iot);
+    const c = (r) => r ? `${fR(r.keep)}/s <span class="mut">= ${r.frac.toFixed(2)} of ${fR(r.pmax)}</span>` : '-';
+    h += `<tr><td>${WLN[wl]}</td><td>${c(u)}</td><td>${c(f)}</td><td class="l">${u ? vPill(u) : ''} ${f ? vPill(f) : ''}</td></tr>`;
+  });
+  $('headTable').innerHTML = h + '</tbody></table><p class="sub" style="margin-top:8px">Fraction = max rate with the replica keeping up in 3/3 reps ÷ the primary\'s max with no replica, same build and config.</p>';
+}
+
+function limitTable() {
+  let h = '<table><thead><tr><th>workload</th><th>build</th><th>primary max</th><th>replica keeps up to</th><th>fraction</th><th>stream MB/s</th><th>pri main</th><th>rep main</th><th>rep IO (max)</th><th>pri Send-Q MB</th><th>rep Recv-Q MB</th><th>catch-up apply</th><th class="l">limit</th></tr></thead><tbody>';
+  WL.forEach((wl) => ['up', 'ff'].forEach((b) => {
+    const r = cellOf(b, wl, S.pipe, S.iot); if (!r) return;
+    h += `<tr><td>${WLN[wl]}</td><td><span class="sw" style="background:${BC[b]}"></span>${BN[b]}</td><td>${fR(r.pmax)}</td><td>${fR(r.keep)}${r.kind === 'fixed-rate' ? ' <span class="mut">fixed-rate</span>' : ''}</td><td>${r.frac.toFixed(2)}</td><td>${fMBs(r.stream_Bps)}</td><td>${fP(r.pri_main)}</td><td>${fP(r.rep_main)}</td><td>${fP(r.rep_io)}</td><td>${fMB(r.pri_sendq)}</td><td>${fMB(r.rep_recvq)}</td><td>${fR(r.cu_cmds)}/s <span class="mut">${fMBs(r.cu_Bps)} MB/s</span></td><td class="l">${vPill(r)}</td></tr>`;
+  }));
+  $('limitTable').innerHTML = h + '</tbody></table>';
+}
+
+const PERFN = { 'up-set64-16-on': 'upstream SET 64 B', 'up-set512-16-on': 'upstream SET 512 B', 'ff-set64-16-on': 'frontier SET 64 B' };
+const PROP = new Set(['propagateNow', 'replicationFeedReplicas', 'feedReplicationBuffer', '_sdsMakeRoomFor', 'sdscatlen', 'zrealloc_usable', 'je_arena_ralloc', 'je_malloc_usable_size', 'memcpy']);
+function perfChart() {
+  const p = D.perf[S.perf]; if (!p) { $('perfChart').textContent = 'no profile'; return; }
+  const syms = [...new Set([...Object.keys(p.attached || {}), ...Object.keys(p.alone || {})])]
+    .sort((a, b) => ((p.attached[b] || [0])[0] - (p.attached[a] || [0])[0]));
+  const W = 680, L = 190, R = 70, rowH = 20, H = 22 + syms.length * rowH;
+  const x = (v) => L + (W - L - R) * v / 100;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Primary main-thread profile, ${PERFN[S.perf]}, pipeline 16, io-threads on">`;
+  [0, 25, 50, 75, 100].forEach((v) => { s += `<line class="grid" x1="${x(v)}" x2="${x(v)}" y1="14" y2="${H}"/><text x="${x(v)}" y="10" text-anchor="middle">${v}%</text>`; });
+  syms.forEach((k, i) => {
+    const y = 18 + i * rowH, a = (p.alone[k] || [0])[0], t = (p.attached[k] || [0])[0];
+    s += `<text x="${L - 6}" y="${y + 13}" text-anchor="end" style="fill:${PROP.has(k) ? 'var(--ob-danger)' : 'var(--ob-text)'}">${esc(k)}</text>`;
+    s += `<rect x="${L}" y="${y + 2}" width="${x(a) - L}" height="7" fill="var(--ob-muted)" opacity=".45" rx="1"/>`;
+    s += `<rect x="${L}" y="${y + 10}" width="${x(t) - L}" height="7" fill="var(--ob-danger)" rx="1"/>`;
+    s += `<text class="v" x="${Math.max(x(a), x(t)) + 5}" y="${y + 15}">${a.toFixed(0)} → ${t.toFixed(0)}%</text>`;
+  });
+  const prop = (p.attached.propagateNow || p.attached.replicationFeedReplicas || [null])[0];
+  $('perfChart').innerHTML = s + '</svg>' + `<p class="sub" style="margin-top:6px">${prop != null ? `Replication propagation takes <b>${prop.toFixed(0)}%</b> of the main thread when attached. ` : 'Frontier builds the stream inside its staged write loop, so there is no separate propagate frame: the stream-building leaves (<code>sdscatlen</code>, <code>memcpy</code>, <code>je_malloc_usable_size</code>) appear only when attached. '}Red names are on the stream-building path. Profiled at pipeline 16, io-threads on, primary alone at saturation vs replica attached at the attached limit.</p>`;
+}
+
+const cellName = (k) => { const sm = k.startsWith('small:'); const [b, wl, p, io] = k.replace('small:', '').split('/'); return `${sm ? '4-core replica: ' : ''}${BN[b]} ${WLN[wl]} P${p}`; };
+const stepKey = (s) => `${s.src}:${s.step}:${s.target}`;
+const ladderSteps = () => (D.ladders[S.cell] || []).filter((s) => D.series[S.cell] && D.series[S.cell][stepKey(s)]);
+function defaultStep() {
+  const st = ladderSteps(); const pass = st.filter((s) => s.keeps_up); const best = pass.length ? Math.max(...pass.map((s) => s.target)) : 0;
+  const fail = st.filter((s) => !s.keeps_up && s.target > best).sort((a, b) => a.target - b.target)[0] || st.find((s) => !s.keeps_up) || st[0];
+  return fail ? stepKey(fail) : null;
+}
+
+function ladChart() {
+  const st = ladderSteps();
+  const W = 680, H = 300, L = 58, R = 16, T = 12, B = 34;
+  const xmax = Math.max(...st.map((s) => s.target)) * 1.05;
+  const lo = Math.log10(1e4), hi = Math.log10(1e9);
+  const x = (v) => L + (W - L - R) * v / xmax;
+  const y = (b) => { const v = Math.log10(Math.max(1e4, Math.min(1e9, b || 1e4))); return T + (H - T - B) * (hi - v) / (hi - lo); };
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Max lag and output buffer per offered rate, ${esc(cellName(S.cell))}">`;
+  [1e4, 1e5, 1e6, 1e7, 1e8, 1e9].forEach((b) => { s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(b)}" y2="${y(b)}"/><text x="${L - 6}" y="${y(b) + 4}" text-anchor="end">${b >= 1e6 ? (b / 1e6) + ' MB' : (b / 1e3) + ' kB'}</text>`; });
+  s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(64 * 1048576)}" y2="${y(64 * 1048576)}" style="stroke:var(--ob-warn);stroke-dasharray:5 4"/><text x="${W - R}" y="${y(64 * 1048576) - 4}" text-anchor="end" style="fill:var(--ob-warn)">64 MB soft limit</text>`;
+  for (let i = 0; i <= 5; i++) { const v = xmax * i / 5; s += `<text x="${x(v)}" y="${H - B + 16}" text-anchor="middle">${fR(v)}</text>`; }
+  s += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">offered write rate (commands/s)</text><line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>`;
+  st.forEach((p) => {
+    const c = p.keeps_up ? 'var(--ob-ok)' : 'var(--ob-danger)', k = stepKey(p), sel = k === S.step;
+    const t = `<b>${esc(p.src)} ${esc(p.step)}</b>: offered ${fR(p.target)}/s, served ${fR(p.achieved)}/s<br>max lag ${fMB(p.gap_max_B)} MB, max output buffer ${fMB(p.omem_max_B)} MB<br>${p.keeps_up ? 'kept up' : 'fell behind: ' + esc(p.why.join('; '))}`;
+    s += `<g data-tip="${esc(t)}" data-step="${esc(k)}" style="cursor:pointer"><circle cx="${x(p.target)}" cy="${y(p.gap_max_B)}" r="${sel ? 6 : 4}" fill="${c}" ${sel ? 'stroke="var(--ob-text-strong)" stroke-width="2"' : ''}/>`;
+    s += `<rect x="${x(p.target) - 3.5}" y="${y(p.omem_max_B) - 3.5}" width="7" height="7" fill="none" stroke="${c}" stroke-width="${sel ? 2.5 : 1.5}"/></g>`;
+  });
+  $('ladChart').innerHTML = s + '</svg>';
+  bindTips($('ladChart'));
+  $('ladChart').querySelectorAll('[data-step]').forEach((g) => g.addEventListener('click', () => { S.step = g.dataset.step; ladChart(); tsChart(); ladTable(); }));
+}
+
+function tsChart() {
+  const pts = (D.series[S.cell] || {})[S.step]; const p = ladderSteps().find((s) => stepKey(s) === S.step);
+  if (!pts || !p) { $('tsChart').textContent = 'no samples'; return; }
+  $('tsTitle').textContent = `Per-second lag and output buffer: ${p.src} ${p.step} at ${fR(p.target)}/s (${p.keeps_up ? 'kept up' : 'fell behind'})`;
+  const W = 680, H = 300, L = 58, R = 16, T = 12, B = 34;
+  const tmax = Math.max(...pts.map((q) => q[0])) || 1;
+  const vmax = Math.max(1048576, ...pts.map((q) => Math.max(q[1] || 0, q[2] || 0))) * 1.08;
+  const vmin = Math.min(0, ...pts.map((q) => q[1] || 0));
+  const x = (t) => L + (W - L - R) * t / tmax, y = (v) => T + (H - T - B) * (vmax - v) / (vmax - vmin);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Per-second replication lag and output buffer">`;
+  for (let i = 0; i <= 4; i++) { const v = vmin + (vmax - vmin) * i / 4; s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fMB(v)} MB</text>`; }
+  for (let i = 0; i <= 6; i++) { const t = tmax * i / 6; s += `<text x="${x(t)}" y="${H - B + 16}" text-anchor="middle">${Math.round(t)}s</text>`; }
+  s += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">seconds into the step (includes ramp-up)</text><line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>`;
+  if (vmax > 16 * 1048576) s += `<line x1="${L}" x2="${W - R}" y1="${y(64 * 1048576)}" y2="${y(64 * 1048576)}" style="stroke:var(--ob-warn);stroke-dasharray:5 4"/>`;
+  pts.forEach((q) => { if (q[3] === 0) s += `<line x1="${x(q[0])}" x2="${x(q[0])}" y1="${H - B}" y2="${H - B - 8}" style="stroke:var(--ob-danger);stroke-width:2"/>`; });
+  const line = (i, col) => { let d = '', pen = false; pts.forEach((q) => { if (q[i] == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(q[0]).toFixed(1)},${y(q[i]).toFixed(1)}`; pen = true; }); return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.8"/>`; };
+  s += line(2, 'var(--ob-om)') + line(1, 'var(--ob-accent)');
+  $('tsChart').innerHTML = s + '</svg>';
+}
+
+function ladTable() {
+  const st = ladderSteps().slice().sort((a, b) => (a.src === b.src ? 0 : a.src === 'base' ? -1 : 1) || a.target - b.target);
+  let h = '<table><thead><tr><th>run</th><th>step</th><th>offered</th><th>served</th><th>stream MB/s</th><th>max lag MB</th><th>lag at end (s)</th><th>lag slope (% of stream)</th><th>max output buffer MB</th><th>pri main</th><th>rep main</th><th>rep IO (max)</th><th class="l">result</th></tr></thead><tbody>';
+  st.forEach((p) => {
+    const k = stepKey(p), sel = k === S.step;
+    const res = p.keeps_up ? '<span class="pill ok">kept up</span>' : `<span class="pill rep">fell behind</span> <span class="mut">${esc(p.why.join('; '))}</span>`;
+    h += `<tr${sel ? ' style="background:var(--ob-bg)"' : ''}><td>${p.src === 'base' ? 'first sweep' : p.src === 'ext' ? 're-run' : '4-core'}</td><td><a href="#ladder" data-step="${esc(k)}">${esc(p.step)}</a></td><td>${fR(p.target)}</td><td>${fR(p.achieved)}</td><td>${fMBs(p.stream_Bps)}</td><td>${fMB(p.gap_max_B)}</td><td>${p.gap_end_s == null ? '-' : p.gap_end_s.toFixed(3)}</td><td>${p.stream_Bps ? (100 * p.gap_slope_Bps / p.stream_Bps).toFixed(2) : '-'}</td><td>${fMB(p.omem_max_B)}</td><td>${fP(p.pri_main)}</td><td>${fP(p.rep_main)}</td><td>${fP(p.rep_io_max)}</td><td class="l">${res}</td></tr>`;
+  });
+  $('ladTable').innerHTML = h + '</tbody></table><p class="sub" style="margin-top:8px">Step names: aNN = NN% of attached saturation (first sweep), xN = Nth ×1.25 step, bisN = bisection, keepN / failN = confirmation holds of the highest passing and first failing rate.</p>';
+  $('ladTable').querySelectorAll('[data-step]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); S.step = a.dataset.step; ladChart(); tsChart(); ladTable(); }));
+}
+
+function smallTable() {
+  let h = '<table><thead><tr><th>cell</th><th>primary max</th><th>8-core replica keeps up to</th><th>4-core replica keeps up to</th><th>change</th><th>first failing rate (4-core)</th><th class="l">limit with the 4-core replica</th></tr></thead><tbody>';
+  D.small.forEach((c) => {
+    const [b, wl, p, io] = c.cell.split('/'); const r8 = cellOf(b, wl, +p, io);
+    const ok = (D.ladders['small:' + c.cell] || []).filter((s) => s.keeps_up && s.target === c.best);
+    const served = ok.length ? ok.reduce((a, s) => a + s.achieved, 0) / ok.length : c.best;
+    const d = r8 ? (100 * (served - r8.keep) / r8.keep) : null;
+    const lim = c.limited === 'primary' ? '<span class="pill pri">primary (replica still keeping up)</span>' : '<span class="pill rep">replica falls behind</span>';
+    h += `<tr><td><span class="sw" style="background:${BC[b]}"></span>${BN[b]} ${WLN[wl]} P${p}</td><td>${fR(c.M)}</td><td>${r8 ? fR(r8.keep) : '-'}</td><td>${fR(served)} <span class="mut">(${ok.length}/3 holds at ${fR(c.best)} offered)</span></td><td>${d == null ? '-' : (d > 0 ? '+' : '') + d.toFixed(0) + '%'}</td><td>${fR(c.fail)}</td><td class="l">${lim}</td></tr>`;
+  });
+  $('smallTable').innerHTML = h + '</tbody></table>';
+}
+
+function fullTable() {
+  const rs = D.summary.slice().sort((a, b) => WL.indexOf(a.wl) - WL.indexOf(b.wl) || a.pipe - b.pipe || a.iot.localeCompare(b.iot) || b.build.localeCompare(a.build));
+  let h = '<table><thead><tr><th>workload</th><th>pipe</th><th>io-threads</th><th>build</th><th>primary max (no replica)</th><th>max with replica keeping up</th><th>fraction</th><th>reps</th><th>stream MB/s</th><th>pri main</th><th>rep main</th><th>rep IO (max)</th><th>catch-up apply</th><th class="l">limit</th></tr></thead><tbody>';
+  rs.forEach((r) => {
+    h += `<tr><td>${WLN[r.wl]}</td><td>${r.pipe}</td><td>${r.iot}</td><td><span class="sw" style="background:${BC[r.build]}"></span>${BN[r.build]}</td><td>${fCI(r.pmax, r.pmax_ci)}</td><td>${fCI(r.keep, r.keep_ci)}${r.kind === 'fixed-rate' ? ' <span class="mut">fixed-rate</span>' : ''}</td><td>${r.frac.toFixed(2)}</td><td>${esc(r.keep_n)}</td><td>${fMBs(r.stream_Bps)}</td><td>${fP(r.pri_main)}</td><td>${fP(r.rep_main)}</td><td>${fP(r.rep_io)}</td><td>${fR(r.cu_cmds)}/s <span class="mut">${fMBs(r.cu_Bps)} MB/s</span></td><td class="l">${vPill(r)}</td></tr>`;
+  });
+  $('fullTable').innerHTML = h + '</tbody></table>';
+}
+
+function buildTable() {
+  let h = '<table><thead><tr><th>build</th><th class="l">branch</th><th class="l">commit</th><th class="l">config</th></tr></thead><tbody>';
+  Object.entries(D.builds).forEach(([k, b]) => { h += `<tr><td><span class="sw" style="background:${BC[k]}"></span>${esc(b.label)}</td><td class="l">${esc(b.branch)}</td><td class="l"><code>${esc(b.sha)}</code></td><td class="l">${esc(b.config)}</td></tr>`; });
+  $('buildTable').innerHTML = h + '</tbody></table>';
+  $('buildLine').textContent = Object.values(D.builds).map((b) => `${b.label} ${b.sha.slice(0, 9)}`).join(' · ') + ' · 8-core primary and replica, c8g.metal-24xl';
+}
+
+function renderTop() {
+  seg('segPipe', [[1, 'P1'], [16, 'P16']], S.pipe, (v) => { S.pipe = +v; renderTop(); });
+  seg('segIot', [['off', 'off'], ['on', 'on']], S.iot, (v) => { S.iot = v; renderTop(); });
+  barChart(); headTable(); limitTable();
+}
+function renderPerf() { seg('segPerf', Object.keys(PERFN).filter((k) => D.perf[k]).map((k) => [k, PERFN[k]]), S.perf, (v) => { S.perf = v; renderPerf(); }); perfChart(); }
+function renderLadder() {
+  const keys = Object.keys(D.series);
+  seg('segCell', keys.map((k) => [k, cellName(k)]), S.cell, (v) => { S.cell = v; S.step = defaultStep(); renderLadder(); });
+  ladChart(); tsChart(); ladTable();
+}
+
+fetch('data/rwt.json').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then((d) => {
+  D = d;
+  const keys = Object.keys(D.series);
+  S.cell = keys.includes('up/set512/16/on') ? 'up/set512/16/on' : keys[0];
+  S.step = defaultStep();
+  $('status').remove();
+  buildTable(); renderTop(); renderPerf(); renderLadder(); smallTable(); fullTable();
+}).catch((e) => { $('status').textContent = 'Could not load data/rwt.json: ' + e.message; });
+</script>
+</body>
+</html>
