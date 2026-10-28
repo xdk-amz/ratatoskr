@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>offbench · elastic core scaling and keyspace-shard-bits, superset vs upstream</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-warn: var(--warn, #d29922);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
+    --ob-el8: #6ea8fe;
+    --ob-elauto: #a371f7;
+    --ob-fr: #db61a2;
+    --ob-df: #3fb9a0;
+    --ob-up: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header .builds { color: var(--ob-muted); font-size: 12px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 96px; }
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; color: var(--ob-text-strong); }
+  h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12px; margin-bottom: 10px; max-width: 1100px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  .seg button:focus-visible { outline: 2px solid var(--ob-text-strong); outline-offset: -2px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child { text-align: left; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; border: 1px solid var(--ob-border); margin-left: 4px; white-space: nowrap; }
+  .pill.better { color: var(--ob-ok); border-color: var(--ob-ok); background: var(--ob-ok-subtle); }
+  .pill.worse { color: var(--ob-danger); border-color: var(--ob-danger); background: var(--ob-danger-subtle); }
+  .pill.tie { color: var(--ob-text); }
+  .pill.warn { color: var(--ob-warn); border-color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ob-muted); font-size: 11.5px; margin: 4px 0 8px; align-items: center; }
+  svg text { fill: var(--ob-muted); font-size: 11px; font-family: inherit; }
+  svg text.v { fill: var(--ob-text); font-size: 10px; }
+  svg line.ax { stroke: var(--ob-border); }
+  .hm { border-collapse: separate; border-spacing: 2px; width: auto; }
+  .hm th, .hm td { border: 0; padding: 2px 6px; }
+  .hm th.grp { text-align: center; color: var(--ob-text-strong); text-transform: none; font-size: 11.5px; border-bottom: 1px solid var(--ob-border); }
+  .hm td.c { width: 62px; height: 26px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 4px; color: var(--ob-text-strong); }
+  .hm td.c.nic { color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .corr { border-color: var(--ob-warn); background: var(--ob-warn-subtle); color: var(--ob-text); }
+  .corr b { color: var(--ob-text-strong); }
+  dl.meth { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; } dl.meth dt { color: var(--ob-muted); } dl.meth dd { margin: 0; }
+  .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .kpi .card b { color: var(--ob-text-strong); font-size: 15px; display: block; margin-bottom: 2px; }
+  ul.c { margin: 4px 0 0; padding-left: 18px; } ul.c li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="top">
+<header>
+  <h1>Elastic core scaling and keyspace-shard-bits: superset vs upstream Valkey</h1>
+  <span class="builds">superset 00990cb46 (fix A on 67805ac58) · upstream 2a23bcda0 · c8g.metal-24xl · 2026-10-27/28</span>
+  <nav>
+    <a href="#summary">Summary</a><a href="#levels">Per core count</a><a href="#timeline">Timeline</a>
+    <a href="#quota">CPUs removed</a><a href="#soak">Memory soak</a><a href="#ksb">Shard bits</a>
+    <a href="#method">Method</a><a href="#caveats">Caveats</a><a href="../../">Index</a>
+  </nav>
+</header>
+</div>
+<main>
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="sub">A Valkey node that scales vertically while it scales out goes from a small CPU budget to a larger one under load, then back.
+  This page runs that on one server: 60 s steps of 2 → 3 → 5 → 3 → 2 total CPUs under sustained load, with <code>CONFIG SET io-threads</code>
+  changed together with the CPU set at every step. A separate sweep picks the <code>keyspace-shard-bits</code> value that gives superset's write lanes
+  their throughput. Cores on this page are <b>total CPUs</b> the server may use, including the CPU that takes the NIC interrupts.</div>
+  <div class="kpi" id="kpi"></div>
+</section>
+
+<section id="levels">
+  <h2>Throughput at each core count</h2>
+  <div class="sub">Server-side ops/s, median of 3 reps of the steady part of each 60 s step (2 reps for CPUs removed). Ratios are each step's level over the
+  previous one; "vs upstream" divides superset by upstream at the same step. Down-steps are shown so you can see the return to baseline.</div>
+  <div class="controls">
+    <div class="g"><span>Workload</span><div class="seg" id="lvW"></div></div>
+  </div>
+  <div class="card"><table id="lvT"></table></div>
+</section>
+
+<section id="timeline">
+  <h2>Per-second timeline</h2>
+  <div class="sub">Server-side ops/s every second of rep 1, all five steps. Shaded bands mark each step and are labelled with its total CPUs.
+  Hover for values.</div>
+  <div class="controls">
+    <div class="g"><span>Workload</span><div class="seg" id="tlW"></div></div>
+    <div class="g"><span>Builds</span><div class="seg" id="tlB"></div></div>
+  </div>
+  <div class="card"><div class="legend" id="tlL"></div><svg id="tlS" width="100%" height="340" role="img" aria-label="Per-second throughput timeline"></svg>
+  <div class="mut" id="tlH" style="min-height:18px"></div></div>
+</section>
+
+<section id="quota">
+  <h2>CPUs removed without telling Valkey</h2>
+  <div class="sub">io-threads stays at 4 while the CPU set shrinks 4 → 2 → 1 server CPUs and grows back (5 → 3 → 2 → 3 → 5 total CPUs). This is a container
+  that loses CPU quota with no operator action. SET P16, 2 reps.</div>
+  <div class="grid2">
+    <div class="card"><table id="qT"></table></div>
+    <div class="card"><svg id="qS" width="100%" height="260" role="img" aria-label="CPUs removed timeline"></svg></div>
+  </div>
+</section>
+
+<section id="soak">
+  <h2>Memory over 50 up/down cycles</h2>
+  <div class="sub">Superset with shard bits 8, 80/20 P16, 200 steps cycling 2, 3, 5, 3 total CPUs. Used memory and throughput at the end of every step.</div>
+  <div class="card"><div class="legend" id="soL"></div><svg id="soS" width="100%" height="300" role="img" aria-label="Soak memory and throughput"></svg></div>
+</section>
+
+<section id="ksb">
+  <h2>keyspace-shard-bits sweep</h2>
+  <div class="sub">Superset only (fixed io-threads per cell, no core changes). The keyspace has 2<sup>bits</sup> shards and a key's write lane is its shard number
+  mod the lane count, so bits 0 means one lane and no parallel writes. Generator ops/s, median of 3 reps. A cell is
+  <span class="pill worse">worse</span> when its median is more than 5% below the best arm's and every rep is below the best arm's slowest rep.
+  Cells marked <span class="pill warn">not server-bound</span> hit the NIC limit or had main below 80% busy, so they do not separate the arms.</div>
+  <div class="card"><table id="kT"></table></div>
+  <div class="card" style="margin-top:12px"><b>Default chosen: 8 bits for every standalone server, including at io-threads 1.</b>
+  <ul class="c">
+    <li>0 bits loses 17-51% on writes at 3 and 5 total CPUs. A node started at 2 CPUs with auto (which resolves to 0 there) never gets write lanes when scaled up.</li>
+    <li>4 bits loses 6% on SET at 4 total CPUs (3 IO threads): 16 shards spread unevenly over 3 lanes.</li>
+    <li>10 bits is 0.5-2% behind 8; 12 bits is 3-5% behind 8.</li>
+    <li>Any bits above 0 costs 2-3% at 2 total CPUs, P16, which is below the 5% bar. SET P1 shows no cost.</li>
+    <li>Memory (local): 8 bits adds 15 KB to an empty server and nothing per key; 14 bits adds about 1 MB.</li>
+  </ul></div>
+</section>
+
+<section id="method">
+  <h2>Method and core layout</h2>
+  <div class="card"><dl class="meth">
+    <dt>Cores</dt><dd>Total CPUs the server may run on: N server CPUs plus 1 CPU for NIC interrupts. Nothing the server needs runs elsewhere and no generator
+      runs on the server host. CPUs outside the layout only run idle housekeeping.</dd>
+    <dt>Layouts</dt><dd id="layouts"></dd>
+    <dt>Threads</dt><dd>Main, the IO threads and bio float over the N server CPUs (<code>taskset</code> on the whole process), as they would inside a container
+      with N CPUs. io-threads = N at every step except "CPUs removed", where it stays at 4. Each step applies the new CPU set and
+      <code>CONFIG SET io-threads</code> together, under load.</dd>
+    <dt>Hardware</dt><dd>c8g.metal-24xl (Graviton4), one server host and two generator hosts per pod. Timelines, CPUs removed and soak ran on one pod in us-east-1d;
+      the shard-bits sweep on a second pod in us-east-1c. Generators within 0.10-0.15 ms of their server.</dd>
+    <dt>Load</dt><dd>memtier, 128 B values, 1M keys, uniform. P16: 2,304 connections. P1: 9,600 connections. 80/20 = 80% GET, 20% SET.
+      Closed loop: offered load is set by connection count and pipeline depth, not by a rate.</dd>
+    <dt>Builds</dt><dd id="builds"></dd>
+    <dt>Measurement</dt><dd>Timelines: server-side ops/s each second (<code>total_commands_processed</code>); a step's level is the median of its steady seconds.
+      Shard bits: generator completions in a 10 s window. Builds alternate in every rep. A 5 ms PING probe from the generator host measures stalls.</dd>
+    <dt>Transitions</dt><dd>"Worst dip" is the lowest second in the first 5 s of a step divided by the lower of the two levels it joins.
+      "Change" is how long the CPU-set plus io-threads change took to apply.</dd>
+  </dl></div>
+</section>
+
+<section id="caveats">
+  <h2>Caveats</h2>
+  <div class="card"><ul class="c">
+    <li>This emulates small nodes on a 96-CPU metal host with a 40 Gbps NIC. A real 2- or 4-vCPU instance has its own network and packet limits, so absolute numbers
+      on the metal rig are upper bounds for small instances.</li>
+    <li>The IRQ CPU is counted in "cores" but is never used by the server's threads, so 2 total CPUs means one CPU for all of main, bio and the event loop.</li>
+    <li>From 2 to 3 total CPUs superset's writes barely scale (SET P16 1.14x, 80/20 1.27x), and upstream is ahead on writes there. That is the cost the staged
+      write lanes add to every write command at 2 IO threads. It is open work.</li>
+    <li>SET P1 levels off at 0.43-0.46M at 5 total CPUs on every build, upstream included. The cause is not identified; it may be the generator's connection
+      count rather than the server.</li>
+    <li>At 2 total CPUs, 9,600 P1 connections arriving at once delay the first INFO by 14 s on superset and 15.5 s on upstream, while PINGs stay under 45 ms.
+      This happens before any core change and is shared with upstream.</li>
+    <li>MSET of 10 hit the NIC's inbound allowance in the shard-bits sweep, and the 9-CPU cells were not server-bound; both are shown but do not separate the arms.</li>
+    <li>Superset here runs <code>--io-threads-free-on-bio yes --main-read-batch yes</code>, which are off by default on that commit. "Auto shard bits" is bug B:
+      it resolves to 0 at io-threads 1 and is fixed by making auto resolve to 8.</li>
+  </ul></div>
+</section>
+</main>
+<script>
+const W = {set: "SET", get: "GET", r80w20: "80/20", mset10: "MSET of 10"};
+const ARMC = {el8: "var(--ob-el8)", elauto: "var(--ob-elauto)", up: "var(--ob-up)"};
+const M = v => (v / 1e6).toFixed(2) + "M";
+const R = v => v.toFixed(2) + "x";
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+let D;
+function seg(id, opts, cur, on) {
+  const el = document.getElementById(id); el.innerHTML = "";
+  for (const [v, l] of opts) {
+    const b = document.createElement("button"); b.textContent = l; b.type = "button";
+    if ((Array.isArray(cur) ? cur.includes(v) : cur === v)) b.classList.add("on");
+    b.setAttribute("aria-pressed", b.classList.contains("on"));
+    b.onclick = () => on(v); el.appendChild(b);
+  }
+}
+function run(ph, w, p, arm) { return D.runs.find(r => r.phase === ph && r.work === w && r.P === p && r.arm === arm); }
+function pill(x) {
+  if (x >= 1.05) return `<span class="pill better">${R(x)}</span>`;
+  if (x <= 0.95) return `<span class="pill worse">${R(x)}</span>`;
+  return `<span class="pill tie">${R(x)}</span>`;
+}
+const WL = [["set|16", "SET P16"], ["get|16", "GET P16"], ["r80w20|16", "80/20 P16"], ["set|1", "SET P1"]];
+
+function kpis() {
+  const s = run("timeline", "set", 16, "el8"), g = run("timeline", "get", 16, "el8"), m = run("timeline", "r80w20", 16, "el8");
+  const tl = D.runs.filter(r => r.phase === "timeline" && r.arm === "el8");
+  const dip = Math.min(...tl.map(r => r.worst_dip)), err = tl.reduce((a, r) => a + r.errors, 0);
+  const back = Math.max(...tl.map(r => Math.abs(r.levels[4] / r.levels[0] - 1)));
+  const so = run("soak", "r80w20", 16, "el8");
+  const u5 = so.used_mb.filter((_, i) => so.server_cpus[i] === 4);
+  const q = run("quota", "set", 16, "el8"), qu = run("quota", "set", 16, "up");
+  const cards = [
+    ["Smooth both ways", `${err} client errors; every transition's lowest second ≥ ${(dip * 100).toFixed(0)}% of the lower level; down-steps end within ${(back * 100).toFixed(1)}% of the start.`],
+    ["3 → 5 cores scales", `SET P16 ${R(s.levels[2] / s.levels[1])}, GET ${R(g.levels[2] / g.levels[1])}, 80/20 ${R(m.levels[2] / m.levels[1])}. At 5 cores superset is ${R(s.levels[2] / run("timeline", "set", 16, "up").levels[2])} upstream on SET and ${R(g.levels[2] / run("timeline", "get", 16, "up").levels[2])} on GET.`],
+    ["2 → 3 cores: writes do not", `SET P16 only ${R(s.levels[1] / s.levels[0])} and 80/20 ${R(m.levels[1] / m.levels[0])} (upstream ${R(run("timeline", "set", 16, "up").levels[1] / run("timeline", "set", 16, "up").levels[0])}). GET gets ${R(g.levels[1] / g.levels[0])}. Superset is behind upstream on writes at 2 and 3 cores.`],
+    ["No memory growth", `50 cycles, 200 steps: used memory at 5 cores stays ${Math.min(...u5).toFixed(1)}-${Math.max(...u5).toFixed(1)} MB; each level returns to the same value.`],
+    ["CPUs removed, io-threads kept", `Superset ${M(q.levels[0])} → ${M(q.levels[2])} at 2 cores and back; upstream falls to ${M(qu.levels[2])} with ${qu.max_probe_ms.toFixed(0)} ms PING stalls.`],
+    ["Shard bits: 8", "0 removes write lanes, 4 is uneven at 3 IO threads, 10 and 12 are slower. Auto must resolve to 8 (bug B)."],
+  ];
+  document.getElementById("kpi").innerHTML = cards.map(([h, t]) => `<div class="card"><b>${h}</b>${t}</div>`).join("");
+}
+
+let lvW = "set|16";
+function levels() {
+  seg("lvW", WL, lvW, v => { lvW = v; levels(); });
+  const [w, p] = lvW.split("|"), P = +p;
+  const arms = ["el8", "elauto", "up"].map(a => run("timeline", w, P, a)).filter(Boolean);
+  const cores = arms[0].cores;
+  let h = `<tr><th>Build</th>${cores.map((c, i) => `<th>${c} cores${i > 2 ? " (down)" : ""}</th>`).join("")}<th>2→3</th><th>3→5</th><th>end / start</th></tr>`;
+  for (const r of arms) {
+    const L = r.levels;
+    h += `<tr><td><span class="sw" style="background:${ARMC[r.arm]}"></span>${esc(D.builds[r.arm].label)}</td>${L.map(v => `<td>${M(v)}</td>`).join("")}
+      <td>${R(L[1] / L[0])}</td><td>${R(L[2] / L[1])}</td><td>${(L[4] / L[0]).toFixed(3)}</td></tr>`;
+  }
+  const up = run("timeline", w, P, "up");
+  for (const a of ["el8", "elauto"]) {
+    const r = run("timeline", w, P, a); if (!r || !up) continue;
+    h += `<tr><td class="mut">${esc(D.builds[a].label)} vs upstream</td>${r.levels.map((v, i) => `<td>${pill(v / up.levels[i])}</td>`).join("")}<td></td><td></td><td></td></tr>`;
+  }
+  h += `<tr><td class="mut">Transitions (all reps)</td><td colspan="8" class="mut" style="text-align:left">` +
+    arms.map(r => `${esc(D.builds[r.arm].label)}: worst dip ${(r.worst_dip * 100).toFixed(0)}%, change ≤ ${r.max_change_ms.toFixed(0)} ms, PING ≤ ${r.max_probe_ms.toFixed(0)} ms, ${r.errors} errors`).join("<br>") + `</td></tr>`;
+  document.getElementById("lvT").innerHTML = h;
+}
+</script>
+<script>
+function lineChart(svgId, series, opt) {
+  // series: [{name, color, pts:[[x,y]]}], opt: {bands:[[x0,x1,label]], yfmt, xlab, hover}
+  const svg = document.getElementById(svgId), Wd = svg.clientWidth || 900, H = +svg.getAttribute("height");
+  const l = 58, r = 14, t = 18, b = 28, iw = Wd - l - r, ih = H - t - b;
+  const xs = series.flatMap(s => s.pts.map(p => p[0])), ys = series.flatMap(s => s.pts.map(p => p[1]));
+  if (!xs.length) { svg.innerHTML = ""; return; }
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys) * 1.08;
+  const X = x => l + (x - x0) / (x1 - x0 || 1) * iw, Y = y => t + ih - y / y1 * ih;
+  let g = "";
+  (opt.bands || []).forEach(([a, z, lab], i) => {
+    g += `<rect x="${X(a)}" y="${t}" width="${Math.max(0, X(z) - X(a))}" height="${ih}" fill="var(--ob-text)" opacity="${i % 2 ? 0.02 : 0.06}"></rect>`;
+    g += `<text x="${(X(a) + X(z)) / 2}" y="${t - 5}" text-anchor="middle">${lab}</text>`;
+  });
+  for (let k = 0; k <= 4; k++) {
+    const v = y1 * k / 4;
+    g += `<line class="ax" x1="${l}" x2="${l + iw}" y1="${Y(v)}" y2="${Y(v)}"></line><text x="${l - 6}" y="${Y(v) + 4}" text-anchor="end">${opt.yfmt(v)}</text>`;
+  }
+  g += `<text x="${l + iw / 2}" y="${H - 6}" text-anchor="middle">${opt.xlab}</text>`;
+  for (const s of series) {
+    g += `<path d="${s.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("")}" fill="none" stroke="${s.color}" stroke-width="1.6"></path>`;
+  }
+  g += `<line id="${svgId}-cur" class="ax" x1="0" x2="0" y1="${t}" y2="${t + ih}" style="display:none"></line>`;
+  svg.innerHTML = g;
+  if (opt.hover) {
+    svg.onmousemove = e => {
+      const bx = svg.getBoundingClientRect(), x = x0 + (e.clientX - bx.left - l) / iw * (x1 - x0);
+      const c = document.getElementById(svgId + "-cur"); c.style.display = ""; c.setAttribute("x1", X(x)); c.setAttribute("x2", X(x));
+      opt.hover(x, series);
+    };
+    svg.onmouseleave = () => { document.getElementById(svgId + "-cur").style.display = "none"; };
+  }
+}
+function bandsOf(r) {
+  const out = []; let s = 0;
+  for (let i = 1; i <= r.series.length; i++) {
+    if (i === r.series.length || r.series[i][2] !== r.series[s][2]) { out.push([r.series[s][0], r.series[i - 1][0], r.series[s][2] + " cores"]); s = i; }
+  }
+  return out;
+}
+let tlW = "set|16", tlB = ["el8", "elauto", "up"];
+function timeline() {
+  seg("tlW", WL, tlW, v => { tlW = v; timeline(); });
+  seg("tlB", [["el8", "shard bits 8"], ["elauto", "auto bits"], ["up", "upstream"]], tlB,
+      v => { tlB = tlB.includes(v) ? tlB.filter(x => x !== v) : [...tlB, v]; timeline(); });
+  const [w, p] = tlW.split("|");
+  const rs = tlB.map(a => run("timeline", w, +p, a)).filter(Boolean);
+  document.getElementById("tlL").innerHTML = rs.map(r => `<span><span class="sw" style="background:${ARMC[r.arm]}"></span>${esc(D.builds[r.arm].label)}</span>`).join("");
+  const series = rs.map(r => ({name: D.builds[r.arm].label, color: ARMC[r.arm], pts: r.series.map(q => [q[0], q[1]])}));
+  lineChart("tlS", series, {bands: rs.length ? bandsOf(rs[0]) : [], yfmt: v => (v / 1e6).toFixed(1) + "M", xlab: "seconds",
+    hover: (x, ss) => {
+      document.getElementById("tlH").textContent = `t=${x.toFixed(0)} s  ` + ss.map(s => {
+        const q = s.pts.reduce((a, b) => Math.abs(b[0] - x) < Math.abs(a[0] - x) ? b : a);
+        return `${s.name}: ${M(q[1])}`; }).join("   ");
+    }});
+}
+function quota() {
+  const rs = ["el8", "up"].map(a => run("quota", "set", 16, a));
+  let h = `<tr><th>Build</th>${rs[0].cores.map(c => `<th>${c} cores</th>`).join("")}<th>worst dip</th><th>max PING</th></tr>`;
+  for (const r of rs) h += `<tr><td><span class="sw" style="background:${ARMC[r.arm]}"></span>${r.arm === "up" ? "upstream" : "superset"}</td>${r.levels.map(v => `<td>${M(v)}</td>`).join("")}<td>${(r.worst_dip * 100).toFixed(0)}%</td><td>${r.max_probe_ms.toFixed(0)} ms</td></tr>`;
+  h += `<tr><td class="mut">superset vs upstream</td>${rs[0].levels.map((v, i) => `<td>${pill(v / rs[1].levels[i])}</td>`).join("")}<td></td><td></td></tr>`;
+  document.getElementById("qT").innerHTML = h;
+  lineChart("qS", rs.map(r => ({name: r.arm, color: ARMC[r.arm], pts: r.series.map(q => [q[0], q[1]])})),
+    {bands: bandsOf(rs[0]), yfmt: v => (v / 1e6).toFixed(1) + "M", xlab: "seconds"});
+}
+function soak() {
+  const r = run("soak", "r80w20", 16, "el8"), mx = Math.max(...r.levels);
+  document.getElementById("soL").innerHTML = `<span><span class="sw" style="background:var(--ob-el8)"></span>used memory (MB, left axis)</span>` +
+    `<span><span class="sw" style="background:var(--ob-up)"></span>throughput, scaled to the memory axis (peak ${M(mx)})</span>`;
+  const um = Math.max(...r.used_mb);
+  lineChart("soS", [
+    {color: "var(--ob-el8)", pts: r.used_mb.map((v, i) => [i + 1, v])},
+    {color: "var(--ob-up)", pts: r.levels.map((v, i) => [i + 1, v / mx * um])},
+  ], {yfmt: v => v.toFixed(0) + " MB", xlab: "step (cycles of 2, 3, 5, 3 total CPUs)"});
+}
+</script>
+<script>
+function ksb() {
+  const AR = ["b0", "b4", "b8", "b10", "b12"];
+  const cells = {};
+  for (const c of D.ksb) {
+    const k = `${c.run}|${c.iot}|${c.P}|${c.work}`;
+    (cells[k] = cells[k] || {run: c.run, iot: c.iot, cores: c.cores, P: c.P, work: c.work, valid: true, busy: c.main_busy, nic: false, arms: {}, runs: []});
+    const e = cells[k]; e.valid = e.valid && c.valid; e.nic = e.nic || c.nic_limited; e.runs.push(c.run);
+    for (const [a, v] of Object.entries(c.arms)) (e.arms[a] = e.arms[a] || []).push(v);
+  }
+  let h = `<tr><th>Cell</th><th>sweep</th><th>cores</th><th>io-threads</th>${AR.map(a => `<th>bits ${a.slice(1)}</th>`).join("")}<th>main busy</th><th></th></tr>`;
+  const ks = Object.values(cells).sort((a, b) => a.run.localeCompare(b.run) || a.iot - b.iot || b.P - a.P || a.work.localeCompare(b.work));
+  for (const e of ks) {
+    const med = {}, reps = {};
+    for (const [a, vs] of Object.entries(e.arms)) { med[a] = vs[0].med; reps[a] = vs[0].reps; }
+    const best = Object.keys(med).reduce((x, y) => med[x] >= med[y] ? x : y);
+    const cell = a => {
+      if (!(a in med)) return `<td class="mut">-</td>`;
+      const worse = e.valid && a !== best && med[a] < 0.95 * med[best] && Math.max(...reps[a]) < Math.min(...reps[best]);
+      return `<td>${(med[a] / 1e6).toFixed(3)}${a === best ? "*" : ""}${worse ? ` <span class="pill worse">${R(med[a] / med[best])}</span>` : ""}</td>`;
+    };
+    h += `<tr><td>${W[e.work]} P${e.P}</td><td class="mut">${e.run === "ksb1027" ? "main" : "fill-in"}</td><td>${e.cores}</td><td>${e.iot}</td>${AR.map(cell).join("")}
+      <td>${e.busy[0].toFixed(2)}-${e.busy[1].toFixed(2)}</td><td>${e.valid ? "" : `<span class="pill warn">not server-bound${e.nic ? " (NIC)" : ""}</span>`}</td></tr>`;
+  }
+  document.getElementById("kT").innerHTML = h + `<tr><td colspan="11" class="mut" style="text-align:left">M ops/s; * best median in the row. Verdicts compare arms within one sweep only. The fill-in reran bits 8 beside 4 at 4 and 9 cores, and beside 10 at 2 and 5 cores.</td></tr>`;
+}
+fetch("data/perf.json").then(r => r.json()).then(d => {
+  D = d;
+  document.getElementById("layouts").innerHTML = Object.entries(D.layouts).map(([c, l]) => `${c} cores: <code>${esc(l)}</code>`).join("<br>");
+  document.getElementById("builds").innerHTML = Object.values(D.builds).map(b => `<b>${esc(b.label)}</b>: ${esc(b.commit)}`).join("<br>");
+  kpis(); levels(); timeline(); quota(); soak(); ksb();
+  addEventListener("resize", () => { timeline(); quota(); soak(); });
+});
+</script>
+</body>
+</html>
