@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>offbench · write scaling at low core counts, superset 29152861a vs upstream</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-warn: var(--warn, #d29922);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --ob-warn-subtle: var(--warn-subtle, rgba(210,153,34,.15));
+    --ob-el8: #6ea8fe;
+    --ob-elauto: #a371f7;
+    --ob-fr: #db61a2;
+    --ob-df: #3fb9a0;
+    --ob-up: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header .builds { color: var(--ob-muted); font-size: 12px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 96px; }
+  h2 { font-size: 14px; font-weight: 650; margin: 0 0 4px; color: var(--ob-text-strong); }
+  h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12px; margin-bottom: 10px; max-width: 1100px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  .seg button:focus-visible { outline: 2px solid var(--ob-text-strong); outline-offset: -2px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child { text-align: left; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; border: 1px solid var(--ob-border); margin-left: 4px; white-space: nowrap; }
+  .pill.better { color: var(--ob-ok); border-color: var(--ob-ok); background: var(--ob-ok-subtle); }
+  .pill.worse { color: var(--ob-danger); border-color: var(--ob-danger); background: var(--ob-danger-subtle); }
+  .pill.tie { color: var(--ob-text); }
+  .pill.warn { color: var(--ob-warn); border-color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ob-muted); font-size: 11.5px; margin: 4px 0 8px; align-items: center; }
+  svg text { fill: var(--ob-muted); font-size: 11px; font-family: inherit; }
+  svg text.v { fill: var(--ob-text); font-size: 10px; }
+  svg line.ax { stroke: var(--ob-border); }
+  .hm { border-collapse: separate; border-spacing: 2px; width: auto; }
+  .hm th, .hm td { border: 0; padding: 2px 6px; }
+  .hm th.grp { text-align: center; color: var(--ob-text-strong); text-transform: none; font-size: 11.5px; border-bottom: 1px solid var(--ob-border); }
+  .hm td.c { width: 62px; height: 26px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 4px; color: var(--ob-text-strong); }
+  .hm td.c.nic { color: var(--ob-warn); background: var(--ob-warn-subtle); }
+  .corr { border-color: var(--ob-warn); background: var(--ob-warn-subtle); color: var(--ob-text); }
+  .corr b { color: var(--ob-text-strong); }
+  dl.meth { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; } dl.meth dt { color: var(--ob-muted); } dl.meth dd { margin: 0; }
+  .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .kpi .card b { color: var(--ob-text-strong); font-size: 15px; display: block; margin-bottom: 2px; }
+  ul.c { margin: 4px 0 0; padding-left: 18px; } ul.c li { margin: 3px 0; }
+  .hm td.c.na { color: var(--ob-muted); background: transparent; border: 1px dashed var(--ob-border); font-weight: 500; }
+  .hm td.c.rr { outline: 2px dashed var(--ob-warn); outline-offset: -2px; }
+  .hm td.c { cursor: default; }
+  .hm td.lab { color: var(--ob-text); white-space: nowrap; padding-right: 10px; }
+  table.t { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.t th, table.t td { border-bottom: 1px solid var(--ob-border); padding: 4px 8px; text-align: right; white-space: nowrap; }
+  table.t th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
+  table.t td:first-child, table.t th:first-child { text-align: left; }
+  table.t td.l, table.t th.l { text-align: left; white-space: normal; }
+  .mut { color: var(--ob-muted); font-size: 11.5px; }
+  .opt { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .opt .card b.h { color: var(--ob-text-strong); font-size: 13.5px; display: block; margin-bottom: 4px; }
+  #hmTip { min-height: 34px; }
+</style>
+</head>
+<body>
+<div class="top">
+<header>
+  <h1>Write scaling at low core counts: superset vs upstream Valkey</h1>
+  <span class="builds">superset-frontier 29152861a · upstream 2a23bcda0 · c8g.metal-24xl · measured 2026-10-29/30 · published 2026-11-02</span>
+  <nav>
+    <a href="#summary">Summary</a><a href="#state">Per core count</a><a href="#scaling">Scaling ratios</a>
+    <a href="#fixes">Kept fixes</a><a href="#below">Below upstream</a><a href="#profile">Profile</a>
+    <a href="#tried">Tried</a><a href="#options">Open options</a><a href="#method">Method</a><a href="#rerun">Reruns needed</a><a href="../../">Index</a>
+  </nav>
+</header>
+</div>
+<main>
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="sub">This page shows where superset-frontier stands on write throughput at small CPU counts, at commit 29152861a.
+  It compares superset with upstream Valkey on SET, HSET, 80/20 (80% GET, 20% SET), MSET10 and GET, with clients pipelining 1 command (P1)
+  or 16 commands (P16). Two cases are covered: a server <b>started at</b> the CPU count measured, and a server that was
+  <b>scaled up</b> to it under load with <code>CONFIG SET io-threads</code>. Cores on this page are <b>total CPUs</b> the server may use,
+  including the CPU that takes the NIC interrupts. Every number comes from runs made during the write-scaling loop; nothing was rerun for this page.
+  Cells whose data needs a rerun to be trusted are marked as such.</div>
+  <div class="kpi" id="kpi"></div>
+</section>
+
+<section id="state">
+  <h2>Superset vs upstream at each core count</h2>
+  <div class="sub">Each cell is superset ÷ upstream, from the mean of 3 reps. Green means the whole CI95 of the ratio is above 1, red means it is entirely below 1,
+  and grey means the CI includes 1. A dashed orange outline marks a cell that needs a rerun to be trusted (see the reason under the table when you hover it).
+  "n/m" means not measured. Hover a cell for both builds' values with CI95, the build measured and the run.</div>
+  <div class="grid2">
+    <div class="card"><h3>Started at that core count</h3><table class="hm" id="hmS"></table></div>
+    <div class="card"><h3>After a scale-up (2 → 3 → 4 total CPUs under load)</h3><table class="hm" id="hmU"></table></div>
+  </div>
+  <div class="card" style="margin-top:10px"><div class="mut" id="hmTip">Hover a cell.</div></div>
+  <h3 style="margin-top:16px">Absolute throughput</h3>
+  <div class="controls">
+    <div class="g"><span>Workload</span><div class="seg" id="abW"></div></div>
+    <div class="g"><span>Pipeline</span><div class="seg" id="abP"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="legend" id="abL"></div><svg id="abS" width="100%" height="280" role="img" aria-label="Absolute throughput by core count"></svg></div>
+    <div class="card"><table class="t" id="abT"></table></div>
+  </div>
+</section>
+
+<section id="scaling">
+  <h2>Scaling from 2 to 3 and from 3 to 4 total CPUs</h2>
+  <div class="sub">Each ratio is throughput at the higher CPU count ÷ throughput at the lower one, for the same build, with the range that follows from each mean's CI95.
+  2 → 3 total CPUs is io-threads 1 → 2 (the first step where superset's write lanes exist); 3 → 4 is io-threads 2 → 3. "Started at" compares servers
+  started at each count; "after a scale-up" compares steps of one timeline. Green or red marks superset's scaling being clearly above or below upstream's (ranges not overlapping).</div>
+  <div class="card"><table class="t" id="scT"></table></div>
+</section>
+
+<section id="fixes">
+  <h2>The two kept fixes</h2>
+  <div class="sub">Both are on the fork's superset-frontier, fast-forwarded on top of the epoll thread-budget work: e13f63f2f → 35b537e81 (fix 1) → 29152861a (fix 2).
+  Neither changes throughput for a server started at its final size (within 0.985-1.007x of the build before it, at 2, 3 and 4 total CPUs), and neither moves
+  the pinned 1, 8 and 16 core layouts by more than 1.6%.</div>
+  <div class="grid2">
+    <div class="card">
+      <h3>Fix 1: an allocator arena per IO thread (35b537e81)</h3>
+      <div class="mut" style="margin-bottom:6px">jemalloc decides how many arenas to create from the CPUs the process may use when it starts. A server started on 1 server CPU
+      gets a single arena, and IO threads added later by <code>CONFIG SET io-threads</code> share it with main and wait on its locks. Each IO thread now
+      binds to an arena of its own when it starts, and reuses it when its slot restarts. Diagnosis on one binary, SET P16 at 3 total CPUs: started there 1.68M;
+      scaled up from 2, 1.47M; scaled up with 8 arenas forced, 1.67M; scaled up with the fix, 1.66M.</div>
+      <div class="controls"><div class="g"><span>Workload</span><div class="seg" id="f1W"></div></div></div>
+      <div class="legend" id="f1L"></div><svg id="f1S" width="100%" height="230" role="img" aria-label="Fix 1 scale-up effect"></svg>
+      <div class="mut">Scale-up timeline wsscale4, 3 reps: e13f63f2f (before) vs 35b537e81 (fix) vs upstream, server-side M ops/s at each step.</div>
+    </div>
+    <div class="card">
+      <h3>Fix 2: clients in the middle of a command move to the IO threads (29152861a)</h3>
+      <div class="mut" style="margin-bottom:6px">On a scale-up, a client moved from main onto the IO threads only when it was between commands. With 16 pipelined MSETs of about
+      1.5 KB each, main's read of a connection nearly always ends partway through a command, so those clients stayed on main for good and MSET10 did not
+      scale at all. A client may now move with a command still arriving, because the IO thread resumes the same parser state. Diagnosis: MSET10 P16
+      after scaling 2 → 3 total CPUs, 0.31M → 0.46M commands/s.</div>
+      <div class="legend" id="f2L"></div><svg id="f2S" width="100%" height="230" role="img" aria-label="Fix 2 scale-up effect"></svg>
+      <div class="mut">Scale-up timeline wsscale5, 3 reps: 35b537e81 (before) vs 29152861a (fix) vs upstream, MSET10 P16, server-side M ops/s at each step.</div>
+    </div>
+  </div>
+</section>
+
+<section id="below">
+  <h2>Cells still below upstream</h2>
+  <div class="sub">Every cell at 29152861a where the whole CI95 of superset ÷ upstream is below 1. Cells marked "rerun" come from an older build or are otherwise flagged below.</div>
+  <div class="card"><table class="t" id="blT"></table></div>
+</section>
+
+<section id="profile">
+  <h2>Where the time goes: MSET10 P1 at 3 total CPUs</h2>
+  <div class="sub">perf record on the server CPUs while both are fully busy, one run per build, converted to CPU nanoseconds per MSET10 command.
+  Superset uses <b>11.65 µs</b> per command and upstream <b>9.69 µs</b>; at P16 the two are about equal (6.1 vs 6.2 µs). The extra is spread over several
+  places, and no single item is above about 7% of samples.</div>
+  <div class="grid2">
+    <div class="card"><div class="legend" id="prL"></div><svg id="prS" width="100%" height="250" role="img" aria-label="CPU ns per MSET10 by bucket"></svg></div>
+    <div class="card"><table class="t" id="prT"></table>
+      <ul class="c mut">
+        <li><b>Lane key prefetch:</b> superset's keyspace bucket is 660 ns higher. The hashtable lookups themselves (<code>findBucket</code>) cost the same
+        on both builds; the difference is the write lanes' key prefetch, about 600 ns per MSET against about 250 ns for upstream's prefetch.</li>
+        <li><b>Allocator slab refills:</b> 7% of samples. They come from allocating each value string while parsing
+        (<code>createStringObject</code> → <code>arena_cache_bin_fill_small</code> → <code>edata_heap_remove_first</code>), on main and on the IO thread.
+        From P16 to P1 superset's allocator cost grows by about 750 ns per MSET while upstream's falls by 280 ns.</li>
+        <li><b>Staged-loop bookkeeping:</b> read events per client, claims on the shared poller and waits at the barrier, about 670 ns more at P1 than at P16.
+        Upstream's main + one IO thread hand-off costs 666 ns in total.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="tried">
+  <h2>Tried and rejected</h2>
+  <div class="sub">Settings on the 29152861a binary at 3 total CPUs (and 4 where stated), 3 reps, against the same binary with defaults and against upstream.
+  None was kept. The lane prefetch run finished its P1 cells only.</div>
+  <div class="card"><table class="t" id="trT"></table>
+  <div class="mut" style="margin-top:6px">Also tried, one rep each, not tabulated: larger jemalloc thread caches (<code>lg_tcache_nslots_mul</code> 3 and 4,
+  <code>tcache_nslots_small_max</code> 2048) moved both superset and upstream by 0 to +1.6% on MSET10 P1 at 3 total CPUs.</div></div>
+</section>
+
+<section id="options">
+  <h2>Open options</h2>
+  <div class="sub">No option has been chosen. They are listed in no order of preference.</div>
+  <div class="opt">
+    <div class="card"><b class="h">A. Use upstream's IO-thread loop below a thread count</b>
+      Superset would run upstream's main + IO thread loop at low io-threads and switch to its staged loop only from io-threads N up, with N found by benchmark
+      (the same way the epoll-thread breakpoint is chosen). The 3-core gaps should close if upstream's loop performs the same inside superset.
+      Superset's current 3-core wins would go with it (GET P16 1.36x, several P1 cells up to 1.23x), and switching modes on scale-up and scale-down would need its own tests.</div>
+    <div class="card"><b class="h">B. Cut the staged loop's own costs at two threads</b>
+      Make the pieces in the profile cheaper: lane key prefetch per key, read events per client, lane entry and reply merge. Each is worth a few percent,
+      so this means several iterations, and there is no guarantee it closes the 15% HSET P16 gap at 3 total CPUs.</div>
+    <div class="card"><b class="h">C. Fix the 2-core cells on their own</b>
+      At io-threads 1 there are no lanes, and the remaining 3-6% gap is the per-command cost of the 8-bit keyspace split plus small extras.
+      Run with no keyspace split at io-threads 1 and split the keyspace when scaling up. This targets only the 2-core cells and adds a reshard step to every scale-up.</div>
+    <div class="card"><b class="h">D. Stop here</b>
+      Keep the two fixes as they are and leave the remaining cells below upstream as listed on this page.</div>
+  </div>
+</section>
+
+<section id="method">
+  <h2>Method and core layout</h2>
+  <div class="card"><dl class="meth">
+    <dt>Builds</dt><dd>superset = fork superset-frontier 29152861a, run with <code>--io-threads-free-on-bio yes --main-read-batch yes</code>.
+      upstream = 2a23bcda0 with default config. Both built with plain <code>make</code> on the server host from a <code>git archive</code> of the commit.</dd>
+    <dt>Hardware</dt><dd>c8g.metal-24xl server and a separate c8g.metal-24xl load generator in the same AZ, 0.11 ms round trip.
+      The scale-up runs for fix 1 and the HSET and P1 scale-up cells used a second pair of the same type.</dd>
+    <dt>Load</dt><dd>memtier, 128 B values, 1M keys. 2, 3 and 4 total CPUs: 2,400 connections at P16 and 9,600 at P1.
+      Pinned 1, 8 and 16 core layouts: 300 connections at P16 and 1,200 at P1. MSET10 sets 10 keys per command; throughput is commands/s for every workload.</dd>
+    <dt>2, 3, 4 total CPUs</dt><dd>Container model: NIC interrupts on CPU 0; main, IO threads and the background threads float over CPUs 1..N, io-threads = N.
+      So 2 / 3 / 4 total CPUs = io-threads 1 / 2 / 3. Steady-state reps of about 25 s.</dd>
+    <dt>Scale-up</dt><dd>One server under constant load, with the CPU set and <code>CONFIG SET io-threads</code> changed together every 30 s:
+      2 → 3 → 4 → 3 → 2 total CPUs. Each step's level is the server-side rate over the step, recorded to 0.01M ops/s, so very small CI95 values are
+      limited by that rounding.</dd>
+    <dt>1, 8, 16 total CPUs</dt><dd>Pinned layouts from the core-layout spec: 1 = <code>main+irq+aux</code> (io-threads 1);
+      8 = <code>3x irq, main, 3x io, aux</code> (io-threads 4); 16 = <code>5x irq, main, 9x io, aux</code> (io-threads 10).</dd>
+    <dt>Statistics</dt><dd>3 reps per arm, arm order rotated each rep. Mean ± CI95 (Student t, n − 1). The ratio's range divides the low end of one CI by the
+      high end of the other, and the high end by the low end.</dd>
+  </dl></div>
+</section>
+
+<section id="rerun">
+  <h2>Cells that need a rerun</h2>
+  <div class="card corr"><ul class="c" id="rrL"></ul></div>
+</section>
+</main>
+<script>
+const WL = [["set", "SET"], ["hset", "HSET"], ["r80w20", "80/20"], ["mset10", "MSET10"], ["get", "GET"]];
+const WN = Object.fromEntries(WL);
+const CORES = [1, 2, 3, 4, 8, 16];
+const IOT = {1: 1, 2: 1, 3: 2, 4: 3, 8: 4, 16: 10};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const f2 = x => x == null ? "–" : x.toFixed(2);
+const f3 = x => x == null ? "–" : x.toFixed(3);
+const mc = s => s ? `${f3(s.mean)}${s.ci != null ? " ± " + f3(s.ci) : ""}` : "–";
+const rr = r => `${f3(r.r)} [${f3(r.lo)}, ${f3(r.hi)}]`;
+const el = (t, a = {}, h = "") => { const e = document.createElement(t); Object.assign(e, a); if (h) e.innerHTML = h; return e; };
+const SVGNS = "http://www.w3.org/2000/svg";
+const sv = (t, a = {}) => { const e = document.createElementNS(SVGNS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const verdict = r => r.lo > 1 ? "better" : (r.hi < 1 ? "worse" : "tie");
+function ratioOf(a, ca, b, cb) { ca = ca || 0; cb = cb || 0; return {r: a / b, lo: (a - ca) / (b + cb), hi: (a + ca) / (b - cb)}; }
+function seg(id, items, cur, on) {
+  const box = document.getElementById(id); box.innerHTML = "";
+  for (const [v, l] of items) {
+    const b = el("button", {textContent: l}); if (v === cur) b.classList.add("on");
+    b.style.cssText = "padding:3px 9px;cursor:pointer;font:inherit;font-size:12px;border:0;border-right:1px solid " + css("--ob-border") +
+      ";background:" + (v === cur ? css("--ob-accent") : css("--ob-bg")) + ";color:" + (v === cur ? css("--ob-bg") : css("--ob-text"));
+    b.onclick = () => { seg(id, items, v, on); on(v); }; box.appendChild(b);
+  }
+}
+function legend(id, items) {
+  document.getElementById(id).innerHTML = items.map(([c, l, dash]) =>
+    `<span><span class="sw" style="background:${c};${dash ? "opacity:.55" : ""}"></span>${l}</span>`).join("");
+}
+
+const WIDE = 0.2;   // CI range of the ratio wider than 20% of the ratio: too wide to call with 3 reps
+const S4NOTE = "measured on 35b537e81 (fix 1, before fix 2) in the wsscale4 run; fix 2 left SET and 80/20 P16 unchanged after a scale-up, but this cell was not rerun at 29152861a";
+
+// One cell of the "started at" view.
+function staticCell(d, w, p, c) {
+  const k = `${w}|${p}|${c}`;
+  if (c >= 2 && c <= 4) {
+    const s = d.static[k], flags = [];
+    if (w === "get") flags.push("measured on 7583ad2eb (fix 1 before it was rebased onto e13f63f2f) in the wsab1 run, not on 29152861a");
+    if ((s.ratio.hi - s.ratio.lo) / s.ratio.r > WIDE) flags.push("the CI95 of the ratio is too wide to call with 3 reps");
+    return {kind: "m", r: s.ratio, sup: s.sup, up: s.up, build: s.build, run: s.run, flags};
+  }
+  const o = d.old_floor_vs_up[k], f = d.floor[k];
+  return {kind: "old", r: {r: o.sup / o.up}, osup: o.sup, oup: o.up, sup: f.sup, vsPrev: f.vs_prev, prevE13: f.prev_vs_e13,
+    flags: ["superset vs upstream was last measured on 1ec9ca248 (2026-10-28, other hosts, medians only). 29152861a was compared only with earlier superset builds here"]};
+}
+// One cell of the "after a scale-up" view.
+function scaleCell(d, w, p, c) {
+  if (w === "get" || c < 2 || c > 4) return {kind: "na", why: w === "get" ? "GET was not in any scale-up timeline" : "the scale-up timelines cover 2, 3 and 4 total CPUs only"};
+  const e = d.scaleup[`${w}|${p}`], i = c - 2, flags = [];
+  if (e.run === "wsscale4") flags.push(S4NOTE);
+  if ((e.ratio[i].hi - e.ratio[i].lo) / e.ratio[i].r > WIDE) flags.push("the CI95 of the ratio is too wide to call with 3 reps");
+  return {kind: "m", r: e.ratio[i], sup: e.sup[i], up: e.up[i], build: e.build, run: e.run, flags, start: c === 2};
+}
+function heatBg(cell) {
+  if (cell.kind !== "m") return css("--ob-bg");
+  const v = verdict(cell.r), a = Math.min(0.85, 0.18 + Math.abs(Math.log(cell.r.r)) * 3);
+  if (v === "tie") return css("--ob-bg");
+  const base = v === "better" ? [63, 185, 80] : [248, 81, 73];
+  return `rgba(${base.join(",")},${a.toFixed(2)})`;
+}
+function tipText(d, w, p, c, cell, mode) {
+  const head = `<b>${WN[w]} P${p}, ${c} total CPU${c > 1 ? "s" : ""} (io-threads ${IOT[c]}), ${mode}.</b> `;
+  if (cell.kind === "na") return head + "Not measured: " + cell.why + ".";
+  if (cell.kind === "old") return head + `Superset 29152861a: ${mc(cell.sup)} M ops/s (vs 35b537e81 ${rr(cell.vsPrev)}; 35b537e81 vs e13f63f2f ${rr(cell.prevE13)}). ` +
+    `Last superset vs upstream measurement, on 1ec9ca248: ${f2(cell.osup)} vs ${f2(cell.oup)} M ops/s = ${f3(cell.r.r)}. ` +
+    `<span style="color:${css("--ob-warn")}">Rerun needed: ${cell.flags[0]}, and the builds between 1ec9ca248 and e13f63f2f were not compared at this layout.</span>`;
+  let t = head + `Superset ${cell.build}: ${mc(cell.sup)} M ops/s; upstream: ${mc(cell.up)} M ops/s; ratio ${rr(cell.r)}. Run ${cell.run}.`;
+  if (cell.start) t += " 2 total CPUs is the timeline's starting step, before any scale-up.";
+  if (cell.flags.length) t += ` <span style="color:${css("--ob-warn")}">Rerun needed: ${cell.flags.join("; ")}.</span>`;
+  return t;
+}
+function heatmap(d, id, fn, mode) {
+  const t = document.getElementById(id); t.innerHTML = "";
+  const h = el("tr"); h.appendChild(el("th", {className: "mut"}, "total CPUs")); for (const c of CORES) h.appendChild(el("th", {className: "grp"}, `${c}<br><span class="mut">iot ${IOT[c]}</span>`));
+  t.appendChild(h);
+  for (const [w] of WL) for (const p of [1, 16]) {
+    const tr = el("tr"); tr.appendChild(el("td", {className: "lab"}, `${WN[w]} P${p}`));
+    for (const c of CORES) {
+      const cell = fn(d, w, p, c), td = el("td", {className: "c"});
+      if (cell.kind === "na") { td.classList.add("na"); td.textContent = "n/m"; }
+      else {
+        td.textContent = (cell.kind === "old" ? "(" : "") + cell.r.r.toFixed(2) + (cell.kind === "old" ? ")" : "");
+        td.style.background = heatBg(cell);
+        if (cell.kind === "old") td.style.color = css("--ob-muted");
+        if (cell.flags.length) td.classList.add("rr");
+      }
+      td.onmouseenter = () => { document.getElementById("hmTip").innerHTML = tipText(d, w, p, c, cell, mode); };
+      tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  }
+}
+</script>
+<script>
+// Grouped bars with CI95 whiskers. groups: [{label, bars: [{v, ci, color, dim}]}]
+function bars(id, groups, opt = {}) {
+  const s = document.getElementById(id); s.innerHTML = "";
+  const W = s.clientWidth || 600, H = +s.getAttribute("height"), L = 44, R = 8, T = 10, B = 34;
+  const max = Math.max(...groups.flatMap(g => g.bars.map(b => b.v == null ? 0 : b.v + (b.ci || 0)))) * 1.12 || 1;
+  const y = v => T + (H - T - B) * (1 - v / max), gw = (W - L - R) / groups.length;
+  for (let i = 0; i <= 4; i++) {
+    const v = max * i / 4; s.appendChild(sv("line", {x1: L, x2: W - R, y1: y(v), y2: y(v), class: "ax", "stroke-opacity": i ? .45 : 1}));
+    const t = sv("text", {x: L - 6, y: y(v) + 4, "text-anchor": "end"}); t.textContent = v.toFixed(v < 1 ? 2 : 1); s.appendChild(t);
+  }
+  groups.forEach((g, gi) => {
+    const n = g.bars.length, bw = Math.min(26, (gw - 14) / n), x0 = L + gi * gw + (gw - bw * n) / 2;
+    g.bars.forEach((b, bi) => {
+      const x = x0 + bi * bw;
+      if (b.v == null) { const t = sv("text", {x: x + bw / 2, y: y(0) - 4, "text-anchor": "middle"}); t.textContent = "n/m"; s.appendChild(t); return; }
+      const r = sv("rect", {x: x + 1, y: y(b.v), width: bw - 2, height: y(0) - y(b.v), fill: b.color, "fill-opacity": b.dim ? .45 : .9, rx: 2});
+      const ti = sv("title"); ti.textContent = `${b.name || ""} ${g.label}: ${b.v.toFixed(3)}${b.ci ? " ± " + b.ci.toFixed(3) : ""} M ops/s`; r.appendChild(ti);
+      s.appendChild(r);
+      if (b.ci) {
+        const cx = x + bw / 2;
+        s.appendChild(sv("line", {x1: cx, x2: cx, y1: y(b.v + b.ci), y2: y(Math.max(0, b.v - b.ci)), stroke: css("--ob-text"), "stroke-width": 1}));
+      }
+    });
+    const t = sv("text", {x: L + gi * gw + gw / 2, y: H - B + 16, "text-anchor": "middle"}); t.textContent = g.label; s.appendChild(t);
+    if (g.sub) { const t2 = sv("text", {x: L + gi * gw + gw / 2, y: H - B + 29, "text-anchor": "middle"}); t2.textContent = g.sub; s.appendChild(t2); }
+  });
+  if (opt.ylab) { const t = sv("text", {x: 4, y: T + 2}); t.textContent = opt.ylab; s.appendChild(t); }
+}
+
+const C = () => ({sup: css("--ob-el8"), up: css("--ob-up"), old: css("--ob-muted")});
+
+function drawAbs(d, w, p) {
+  const c = C();
+  legend("abL", [[c.sup, "superset, started at"], [c.up, "upstream, started at"], [c.sup, "superset, after a scale-up", 1], [c.up, "upstream, after a scale-up", 1]]);
+  const groups = [2, 3, 4].map(n => {
+    const s = staticCell(d, w, p, n), u = scaleCell(d, w, p, n);
+    return {label: `${n} CPUs`, sub: `iot ${IOT[n]}`, bars: [
+      {name: "superset started", v: s.sup.mean, ci: s.sup.ci, color: c.sup}, {name: "upstream started", v: s.up.mean, ci: s.up.ci, color: c.up},
+      {name: "superset scaled", v: u.kind === "m" ? u.sup.mean : null, ci: u.kind === "m" ? u.sup.ci : 0, color: c.sup, dim: 1},
+      {name: "upstream scaled", v: u.kind === "m" ? u.up.mean : null, ci: u.kind === "m" ? u.up.ci : 0, color: c.up, dim: 1}]};
+  });
+  bars("abS", groups, {ylab: "M ops/s"});
+  const t = document.getElementById("abT");
+  let h = `<tr><th>total CPUs</th><th>superset, started</th><th>upstream, started</th><th>ratio</th><th>superset, scaled up</th><th>upstream, scaled up</th><th>ratio</th></tr>`;
+  for (const n of CORES) {
+    const s = staticCell(d, w, p, n), u = scaleCell(d, w, p, n);
+    const flag = x => x.flags && x.flags.length ? ` <span class="pill warn" title="${x.flags.join("; ")}">rerun</span>` : "";
+    let a;
+    if (s.kind === "old") a = `<td>${mc(s.sup)}</td><td class="mut">${f2(s.oup)} (on 1ec9ca248 run)</td><td class="mut">(${f2(s.r.r)})${flag(s)}</td>`;
+    else a = `<td>${mc(s.sup)}</td><td>${mc(s.up)}</td><td>${rr(s.r)} <span class="pill ${verdict(s.r)}">${verdict(s.r)}</span>${flag(s)}</td>`;
+    let b;
+    if (u.kind === "na") b = `<td class="mut" colspan="3">not measured</td>`;
+    else b = `<td>${mc(u.sup)}</td><td>${mc(u.up)}</td><td>${rr(u.r)} <span class="pill ${verdict(u.r)}">${verdict(u.r)}</span>${flag(u)}${u.start ? ' <span class="mut">start</span>' : ""}</td>`;
+    h += `<tr><td>${n} (iot ${IOT[n]})</td>${a}${b}</tr>`;
+  }
+  t.innerHTML = h + `<tr><td colspan="7" class="l mut">M ops/s, mean ± CI95 of 3 reps. 1, 8 and 16 total CPUs: superset is 29152861a on the pinned layouts; the upstream value
+    in brackets is from the older 1ec9ca248 comparison and is not comparable with it, see the rerun list.</td></tr>`;
+}
+
+// Scaling ratio between two steps for one series of {mean, ci}.
+const step = (lo, hi) => ratioOf(hi.mean, hi.ci, lo.mean, lo.ci);
+function drawScaling(d) {
+  const t = document.getElementById("scT");
+  let h = `<tr><th></th><th colspan="2">started at, 2 → 3</th><th colspan="2">started at, 3 → 4</th><th colspan="2">after a scale-up, 2 → 3</th><th colspan="2">after a scale-up, 3 → 4</th></tr>
+    <tr><th>workload</th>${"<th>superset</th><th>upstream</th>".repeat(4)}</tr>`;
+  const cellPair = (a, b, note) => {
+    const v = a.lo > b.hi ? "better" : (a.hi < b.lo ? "worse" : "");
+    const st = v ? ` style="color:${css(v === "better" ? "--ob-ok" : "--ob-danger")};font-weight:650"` : "";
+    const fl = note ? ` <span class="pill warn" title="${note}">rerun</span>` : "";
+    return `<td${st}>${a.r.toFixed(2)}x <span class="mut">[${a.lo.toFixed(2)}, ${a.hi.toFixed(2)}]</span>${fl}</td><td>${b.r.toFixed(2)}x <span class="mut">[${b.lo.toFixed(2)}, ${b.hi.toFixed(2)}]</span></td>`;
+  };
+  for (const [w] of WL) for (const p of [1, 16]) {
+    let row = `<td>${WN[w]} P${p}</td>`;
+    const s = [2, 3, 4].map(n => d.static[`${w}|${p}|${n}`]);
+    const sn = w === "get" ? "measured on 7583ad2eb, not 29152861a" : "";
+    row += cellPair(step(s[0].sup, s[1].sup), step(s[0].up, s[1].up), sn) + cellPair(step(s[1].sup, s[2].sup), step(s[1].up, s[2].up), sn);
+    const e = d.scaleup[`${w}|${p}`];
+    if (!e) row += `<td colspan="4" class="mut">not measured</td>`;
+    else {
+      const n = e.run === "wsscale4" ? S4NOTE : "";
+      row += cellPair(step(e.sup[0], e.sup[1]), step(e.up[0], e.up[1]), n) + cellPair(step(e.sup[1], e.sup[2]), step(e.up[1], e.up[2]), n);
+    }
+    h += `<tr>${row}</tr>`;
+  }
+  t.innerHTML = h + `<tr><td colspan="9" class="l mut">Scaling ratios at 1 → 2 and 4 → 8 → 16 total CPUs are not shown: those core counts use different layouts (pinned, with more
+    interrupt CPUs) and were not measured against upstream at this tip.</td></tr>`;
+}
+
+const STEPS = ["2", "3", "4", "3", "2"];
+function drawFix1(d, w) {
+  const c = C(), e = d.s4[`${w}|16`];
+  legend("f1L", [[c.old, "e13f63f2f, before"], [c.sup, "35b537e81, fix 1"], [c.up, "upstream"]]);
+  bars("f1S", STEPS.map((n, i) => ({label: `${n} CPUs`, sub: i < 2 ? (i ? "up" : "start") : (i === 2 ? "up" : "down"), bars: [
+    {name: "before", v: e.before[i].mean, ci: e.before[i].ci, color: c.old}, {name: "fix 1", v: e.fix[i].mean, ci: e.fix[i].ci, color: c.sup},
+    {name: "upstream", v: e.up[i].mean, ci: e.up[i].ci, color: c.up}]})), {ylab: "M ops/s"});
+}
+function drawFix2(d) {
+  const c = C(), e = d.scaleup["mset10|16"];
+  legend("f2L", [[c.old, "35b537e81, before"], [c.sup, "29152861a, fix 2"], [c.up, "upstream"]]);
+  bars("f2S", STEPS.map((n, i) => ({label: `${n} CPUs`, sub: i < 2 ? (i ? "up" : "start") : (i === 2 ? "up" : "down"), bars: [
+    {name: "before", v: e.prev[i].mean, ci: e.prev[i].ci, color: c.old}, {name: "fix 2", v: e.sup[i].mean, ci: e.sup[i].ci, color: c.sup},
+    {name: "upstream", v: e.up[i].mean, ci: e.up[i].ci, color: c.up}]})), {ylab: "M ops/s"});
+}
+</script>
+<script>
+function drawBelow(d) {
+  const rows = [];
+  for (const [w] of WL) for (const p of [1, 16]) for (const n of [2, 3, 4]) {
+    const s = staticCell(d, w, p, n); if (s.r.hi < 1) rows.push(["started at", w, p, n, s]);
+    const u = scaleCell(d, w, p, n); if (u.kind === "m" && !u.start && u.r.hi < 1) rows.push(["after a scale-up", w, p, n, u]);
+  }
+  rows.sort((a, b) => a[3] - b[3] || a[4].r.r - b[4].r.r);
+  let h = `<tr><th>total CPUs</th><th>case</th><th>cell</th><th>superset</th><th>upstream</th><th>superset ÷ upstream</th><th class="l">note</th></tr>`;
+  for (const [mode, w, p, n, x] of rows)
+    h += `<tr><td>${n} (iot ${IOT[n]})</td><td>${mode}</td><td>${WN[w]} P${p}</td><td>${mc(x.sup)}</td><td>${mc(x.up)}</td><td>${rr(x.r)}</td>
+      <td class="l">${x.flags.length ? '<span class="pill warn">rerun</span> ' + x.flags.join("; ") : ""}</td></tr>`;
+  h += `<tr><td colspan="7" class="l mut">At 2 total CPUs (io-threads 1) superset has no write lanes; the gap there is the per-command cost of the 8-bit keyspace split
+    plus small extras, as found in the core-scaling loop. At 1, 8 and 16 total CPUs superset was not measured against upstream at this tip, so no cell there is
+    listed; see the rerun list.</td></tr>`;
+  document.getElementById("blT").innerHTML = h;
+  return rows;
+}
+
+const PROF = [["kernel", "Kernel (network, scheduling)", 3277, 3552], ["keyspace", "Keyspace (lookups, lane key prefetch)", 1880, 1218],
+  ["alloc", "Allocator", 1641, 1201], ["staged", "Staged loop / upstream IO hand-off", 1345, 666], ["parse", "Command parsing", 311, 437]];
+function drawProfile() {
+  const all = PROF.concat([["other", "Everything else (command execution, replies, misc)", 11650 - PROF.reduce((s, x) => s + x[2], 0), 9690 - PROF.reduce((s, x) => s + x[3], 0)]]);
+  const cols = ["--ob-el8", "--ob-fr", "--ob-warn", "--ob-danger", "--ob-df", "--ob-muted"].map(css);
+  legend("prL", all.map((x, i) => [cols[i], x[1]]));
+  const s = document.getElementById("prS"); s.innerHTML = "";
+  const W = s.clientWidth || 600, L = 76, R = 10, max = 12000, x = v => L + (W - L - R) * v / max;
+  [["superset", 2], ["upstream", 3]].forEach(([name, k], ri) => {
+    const yy = 30 + ri * 80; let acc = 0;
+    const t = sv("text", {x: 4, y: yy + 26}); t.textContent = name; s.appendChild(t);
+    all.forEach((b, i) => {
+      const r = sv("rect", {x: x(acc), y: yy, width: x(acc + b[k]) - x(acc), height: 40, fill: cols[i], "fill-opacity": .85});
+      const ti = sv("title"); ti.textContent = `${name}: ${b[1]} ${b[k]} ns`; r.appendChild(ti); s.appendChild(r); acc += b[k];
+    });
+    const tt = sv("text", {x: x(acc) + 4, y: yy + 26}); tt.setAttribute("class", "v"); tt.textContent = (acc / 1000).toFixed(2) + " µs"; s.appendChild(tt);
+  });
+  for (let v = 0; v <= max; v += 2000) {
+    s.appendChild(sv("line", {x1: x(v), x2: x(v), y1: 20, y2: 200, class: "ax", "stroke-opacity": .4}));
+    const t = sv("text", {x: x(v), y: 218, "text-anchor": "middle"}); t.textContent = (v / 1000) + " µs"; s.appendChild(t);
+  }
+  let h = `<tr><th>bucket</th><th>superset ns</th><th>upstream ns</th><th>difference</th></tr>`;
+  for (const b of all) h += `<tr><td>${b[1]}</td><td>${b[2]}</td><td>${b[3]}</td><td>${b[2] - b[3] > 0 ? "+" : ""}${b[2] - b[3]}</td></tr>`;
+  h += `<tr><td><b>total</b></td><td><b>11650</b></td><td><b>9690</b></td><td><b>+1960</b></td></tr>`;
+  document.getElementById("prT").innerHTML = h;
+}
+
+const KN = {wsdnb: "Free values inline instead of on the background thread (io-threads-free-on-bio no)",
+  wsdpw0: "Parallel write lanes off (io-threads-parallel-writes no)",
+  wsdmin: "Every write segment run serially on main (io-threads-parallel-writes-min 1000000)",
+  wsdlp0: "Lane key prefetch off (io-threads-lane-prefetch no)"};
+function drawTried(d) {
+  let h = `<tr><th class="l">setting</th><th>total CPUs</th><th>cell</th><th>vs same binary, defaults</th><th>vs upstream</th></tr>`;
+  for (const arm of ["wsdnb", "wsdpw0", "wsdmin", "wsdlp0"]) {
+    const ks = Object.keys(d.knobs).filter(k => k.startsWith(arm + "|")).sort((a, b) => {
+      const A = a.split("|"), B = b.split("|"); return A[3] - B[3] || A[1].localeCompare(B[1]) || A[2] - B[2];
+    });
+    ks.forEach((k, i) => {
+      const [, w, p, n] = k.split("|"), e = d.knobs[k];
+      h += `<tr>${i === 0 ? `<td class="l" rowspan="${ks.length}">${KN[arm]}</td>` : ""}<td>${n}</td><td>${WN[w]} P${p}</td>
+        <td>${rr(e.vs_def)} <span class="pill ${verdict(e.vs_def)}">${verdict(e.vs_def)}</span></td><td>${rr(e.vs_up)}</td></tr>`;
+    });
+  }
+  document.getElementById("trT").innerHTML = h;
+}
+
+function drawReruns(d) {
+  const wide = [];
+  for (const [w] of WL) for (const p of [1, 16]) for (const n of [2, 3, 4]) {
+    const s = staticCell(d, w, p, n); if (s.flags.some(f => f.includes("too wide"))) wide.push(`${WN[w]} P${p} at ${n} total CPUs, started at (${rr(s.r)})`);
+    const u = scaleCell(d, w, p, n); if (u.kind === "m" && u.flags.some(f => f.includes("too wide"))) wide.push(`${WN[w]} P${p} at ${n} total CPUs, after a scale-up (${rr(u.r)})`);
+  }
+  const items = [
+    "<b>1, 8 and 16 total CPUs, superset vs upstream (all 10 cells, started at):</b> the tip 29152861a was compared only with the superset builds before it " +
+      "(within 0.991-1.016x of 35b537e81, which was within 0.988-1.007x of e13f63f2f). The last run against upstream at these layouts was on 1ec9ca248 on 2026-10-28, " +
+      "on other hosts, and several kept changes landed between 1ec9ca248 and e13f63f2f, including the epoll thread-budget work. A run of 29152861a vs upstream " +
+      "on the pinned layouts is needed before these cells can be read.",
+    "<b>1, 8 and 16 total CPUs, after a scale-up:</b> never measured. The scale-up timelines cover 2, 3 and 4 total CPUs.",
+    "<b>GET, started at 2, 3 and 4 total CPUs:</b> measured on 7583ad2eb (fix 1 before its rebase onto e13f63f2f) in wsab1, not on 29152861a. " +
+      "Neither fix changed the started-at write cells, but GET was not rerun on the rebased builds.",
+    "<b>GET after a scale-up:</b> never measured.",
+    "<b>HSET P16, SET P1, 80/20 P1 and HSET P1 after a scale-up:</b> " + S4NOTE + ".",
+    `<b>CI95 of the ratio too wide to call with 3 reps</b> (range over ${WIDE * 100}% of the ratio): ${wide.join("; ")}.`,
+    "<b>MSET10 P1 profile at 3 total CPUs:</b> one perf record run per build. The per-bucket split is indicative; the totals agree with the throughput gap.",
+    "<b>Lane prefetch off:</b> only the P1 cells finished; the P16 cells were not measured."];
+  document.getElementById("rrL").innerHTML = items.map(x => `<li>${x}</li>`).join("");
+}
+
+function drawKpi(d, below) {
+  const sc = d.scaleup, s4 = d.s4;
+  const nS = below.filter(r => r[0] === "started at").length, nU = below.filter(r => r[0] !== "started at").length;
+  const k = [
+    ["Current tip", "superset-frontier 29152861a", "Two fixes kept on top of e13f63f2f. No code change since; options A-D below are open."],
+    ["SET P16 after a scale-up to 3 CPUs", `${f2(s4["set|16"].fix[1].mean)}M vs upstream ${f2(s4["set|16"].up[1].mean)}M`,
+      `Before fix 1: ${f2(s4["set|16"].before[1].mean)}M. 2 → 3 CPU scaling is now ${(sc["set|16"].sup[1].mean / sc["set|16"].sup[0].mean).toFixed(2)}x vs upstream ${(sc["set|16"].up[1].mean / sc["set|16"].up[0].mean).toFixed(2)}x.`],
+    ["MSET10 P16 after a scale-up to 4 CPUs", `${f2(sc["mset10|16"].sup[2].mean)}M vs upstream ${f2(sc["mset10|16"].up[2].mean)}M`,
+      `Before fix 2: ${f2(sc["mset10|16"].prev[2].mean)}M; MSET10 did not scale at all after a scale-up.`],
+    ["Below upstream at 2-4 CPUs (CI95 under 1)", `${nS} started-at cells, ${nU} scale-up cells`,
+      "Largest: HSET P16 at 3 CPUs (0.85x) and MSET10 P1 at 3 CPUs (0.84x). 1, 8 and 16 CPUs need a rerun against upstream."]];
+  document.getElementById("kpi").innerHTML = k.map(([a, b, c]) => `<div class="card"><span class="mut">${a}</span><b>${b}</b><span class="mut">${c}</span></div>`).join("");
+}
+
+fetch("data/ws.json").then(r => r.json()).then(d => {
+  heatmap(d, "hmS", staticCell, "started at that core count");
+  heatmap(d, "hmU", scaleCell, "after a scale-up");
+  let aw = "set", ap = 16;
+  seg("abW", WL, aw, v => { aw = v; drawAbs(d, aw, ap); });
+  seg("abP", [[1, "P1"], [16, "P16"]], ap, v => { ap = v; drawAbs(d, aw, ap); });
+  drawAbs(d, aw, ap);
+  drawScaling(d);
+  let fw = "set";
+  seg("f1W", WL.filter(x => x[0] !== "get"), fw, v => { fw = v; drawFix1(d, fw); });
+  drawFix1(d, fw); drawFix2(d);
+  const below = drawBelow(d);
+  drawProfile(); drawTried(d); drawReruns(d); drawKpi(d, below);
+}).catch(e => { document.getElementById("kpi").innerHTML = `<div class="card">Could not load data/ws.json: ${e}</div>`; });
+</script>
+</body>
+</html>
