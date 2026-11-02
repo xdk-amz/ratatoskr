@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dragonfly's official benchmark: reproduction and Valkey superset in the same setup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ob-bg: var(--bg, #0f1115);
+    --ob-bg-elevated: var(--bg-elevated, #14171d);
+    --ob-card: var(--card, #171a21);
+    --ob-card-fg: var(--card-fg, #e6e6e6);
+    --ob-text: var(--text, #e6e6e6);
+    --ob-text-strong: var(--text-strong, #ffffff);
+    --ob-muted: var(--muted, #8b93a7);
+    --ob-border: var(--border, #2a2f3a);
+    --ob-accent: var(--accent, #6ea8fe);
+    --ob-ok: var(--ok, #3fb950);
+    --ob-danger: var(--danger, #f85149);
+    --ob-ok-subtle: var(--ok-subtle, rgba(63,185,80,.15));
+    --ob-danger-subtle: var(--danger-subtle, rgba(248,81,73,.15));
+    --c-pub: #8b93a7;
+    --c-df: #3fb9a0;
+    --c-ss48: #f0883e;
+    --c-ss24: #6ea8fe;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13.5px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--ob-bg); color: var(--ob-text); }
+  a { color: var(--ob-accent); }
+  .top { position: sticky; top: 0; z-index: 3; background: var(--ob-bg-elevated); color: var(--ob-text); border-bottom: 1px solid var(--ob-border); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 22px 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ob-text-strong); }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  header nav a { text-decoration: none; }
+  main { padding: 18px 22px 60px; max-width: 1300px; margin: 0 auto; }
+  section { margin-bottom: 30px; scroll-margin-top: 70px; }
+  h2 { font-size: 15px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  h3 { font-size: 13px; font-weight: 650; margin: 0 0 6px; color: var(--ob-text-strong); }
+  .sub { color: var(--ob-muted); font-size: 12.5px; margin-bottom: 10px; max-width: 1050px; }
+  .card { background: var(--ob-card); color: var(--ob-card-fg); border: 1px solid var(--ob-border); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-x: auto; margin-bottom: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 1100px) { .grid3 { grid-template-columns: 1fr; } }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls .g { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls .g > span { color: var(--ob-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ob-border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--ob-bg); color: var(--ob-text); border: 0; border-right: 1px solid var(--ob-border); padding: 4px 10px; font: inherit; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ob-accent); color: var(--ob-bg); font-weight: 650; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); text-align: right; white-space: nowrap; }
+  th { color: var(--ob-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  td:first-child, th:first-child, td.l, th.l { text-align: left; }
+  td.wrap { white-space: normal; text-align: left; }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ob-bg); color: var(--ob-text); padding: 1px 4px; border-radius: 4px; }
+  pre { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ob-bg); color: var(--ob-text); padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 4px 0 8px; }
+  .mut { color: var(--ob-muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .win { background: var(--ob-ok-subtle); color: var(--ob-ok); font-weight: 650; }
+  .loss { background: var(--ob-danger-subtle); color: var(--ob-danger); font-weight: 650; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ob-muted); margin: 4px 0 8px; }
+  ul.tight { margin: 4px 0; padding-left: 20px; }
+  ul.tight li { margin: 3px 0; }
+  svg text { fill: var(--ob-muted); font-size: 11px; }
+  svg .val { fill: var(--ob-text); font-size: 10.5px; }
+  svg .axis { stroke: var(--ob-border); }
+</style>
+</head>
+<body>
+<div class="top"><header>
+  <h1>Dragonfly's official benchmark: reproduction, then Valkey superset in the same setup</h1>
+  <nav><a href="../../">ratatoskr</a><a href="#verdict">Verdict</a><a href="#setup">Setup</a><a href="#charts">Charts</a><a href="#tables">Tables</a><a href="#repro">Reproduction gap</a><a href="#iot">io-threads</a></nav>
+</header></div>
+<main>
+
+<section id="verdict">
+  <h2>Verdict</h2>
+  <div class="card">
+    <ul class="tight">
+      <li><b>Reproduction.</b> Dragonfly v1.15.0 with Dragonfly's own commands lands within 10% of its published numbers in 6 of 9 cells.
+        The outliers are c6gn write (0.83x), c6gn read (0.88x) and c6in write (1.28x). By the published latencies (Little's law, 1200 connections over the average latency),
+        our runs carry more load than Dragonfly's in every non-pipelined cell, so the shortfall is in how memtier reports Ops/sec, not in the server (see <a href="#repro">Reproduction gap</a>).</li>
+      <li><b>Superset at <code>io-threads 48</code></b> (one thread per vCPU, as Dragonfly runs) is limited by its main thread: main sits at 100% while the 47 IO threads idle at about 60%.
+        Against our measured Dragonfly it reaches 0.27-0.29x on writes, 0.38-0.45x on reads, and 0.89-1.04x on pipelined reads.</li>
+      <li><b>Superset at <code>io-threads 24</code></b> is the best setting in a sweep on the same 48-vCPU servers. Against our measured Dragonfly:
+        <span class="win">pipelined read 2.1-2.6x faster</span> (20M ops/s on c7gn and c6in, at less than half the latency),
+        <span class="loss">read 0.63-0.92x</span> (closest on x86 c6in),
+        <span class="loss">write 0.38-0.52x</span>.</li>
+      <li>Superset loses every non-pipelined cell at 1200 connections, and write is the largest gap (1.35-2.40M SET/s against Dragonfly's 3.5-5.4M).
+        The 48-thread runs show main as the limit; the 24-thread runs were not profiled, so their write limit is not root-caused on this page.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="setup">
+  <h2>Setup</h2>
+  <div class="sub">Everything below is taken from <a href="https://www.dragonflydb.io/docs/getting-started/benchmark">dragonflydb.io/docs/getting-started/benchmark</a> unless listed under assumptions. Only the server binary changes between Dragonfly and superset runs.</div>
+  <div class="card">
+    <table>
+      <tr><th class="l">Item</th><th class="l">Dragonfly's page</th><th class="l">This run</th></tr>
+      <tr><td>Client instance</td><td class="l">c7gn.16xlarge (64 vCPU)</td><td class="l">c7gn.16xlarge</td></tr>
+      <tr><td>Server instances</td><td class="l">c6gn.12xlarge, c7gn.12xlarge, c6in.12xlarge (48 vCPU each)</td><td class="l">same three</td></tr>
+      <tr><td>Placement</td><td class="l">same AZ, private IPs, cluster placement group (stated for c6in, recommended for all)</td><td class="l">us-east-1c, one cluster placement group for all four instances, private IPs; client-to-server ping 0.10-0.13 ms</td></tr>
+      <tr><td>OS</td><td class="l">Ubuntu 23.04, kernel 6.2</td><td class="l">Ubuntu 23.04 (Canonical 20240117 AMI), kernel 6.2.0-1017-aws, no tuning</td></tr>
+      <tr><td>Load generator</td><td class="l">memtier_benchmark, version not stated</td><td class="l">memtier_benchmark 2.0.0, built from the upstream tag</td></tr>
+      <tr><td>Dragonfly</td><td class="l">v1.15.0, <code>./dragonfly --logtostderr --dbfilename=</code>, all vCPUs</td><td class="l">v1.15.0-0c1150956b official release (aarch64 / x86_64), same command, 48 proactor threads</td></tr>
+      <tr><td>Superset</td><td class="l">-</td><td class="l">xdk-amz/valkey <code>superset-frontier</code> at <code>29152861a3ab74e08bcb771a52c993dbface7182</code>, plain <code>make</code> on each server.<br>
+        <code>valkey-server --port 6379 --protected-mode no --save '' --appendonly no --io-threads N</code>, N = 48 and N = 24, all else at branch defaults
+        (each IO thread owns its own epoll set; the branch has no separate epoll/IO split setting).</td></tr>
+      <tr><td>Server CPUs</td><td class="l">48 vCPUs, all usable</td><td class="l">48 vCPUs for both servers, unpinned. Dragonfly runs 48 proactor threads. Superset runs N threads (main + N-1 IO threads); NIC interrupts and softirq share the same 48 vCPUs.</td></tr>
+      <tr><td>Reps</td><td class="l">one run shown</td><td class="l">3 reps per server type and build; fresh server per rep; Dragonfly and superset (48) alternate order per rep</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Client commands (verbatim from the page)</h3>
+    <pre>write          memtier_benchmark -s $SERVER_PRIVATE_IP --distinct-client-seed --hide-histogram --ratio 1:0 -t 60 -c 20 -n 200000
+read           memtier_benchmark -s $SERVER_PRIVATE_IP --distinct-client-seed --hide-histogram --ratio 0:1 -t 60 -c 20 -n 200000
+pipelined read memtier_benchmark -s $SERVER_PRIVATE_IP --ratio 0:1 -t 60 -c 5 -n 200000 --distinct-client-seed --hide-histogram --pipeline=10
+               (c6in: -n 2000000)</pre>
+    <div class="mut">1200 connections for write and read, 300 connections at pipeline depth 10 for pipelined read. Read follows write without a flush, so all reads hit.</div>
+  </div>
+  <div class="card">
+    <h3>Assumptions (the page does not state these)</h3>
+    <ul class="tight">
+      <li>Region us-east-1. The first AZ tried had no c7gn.16xlarge capacity in a cluster group; all four instances ended up in one cluster group in us-east-1c.</li>
+      <li>memtier 2.0.0, the last release before Dragonfly v1.15.0 (February 2024). All other memtier options at defaults: RESP2, 32-byte values, keys 0-10,000,000, random key pattern, fixed request count.</li>
+      <li>No sysctl, IRQ or CPU-affinity tuning on either side, since the page describes none.</li>
+      <li>Throughput is memtier's own <code>Totals</code> Ops/sec, the figure the page reports. The tables also show memtier's wall-clock average and the Little's-law rate (connections / average latency).</li>
+      <li>Superset <code>io-threads 24</code> was chosen from a short sweep (8-48) on the same servers; the sweep is <a href="#iot">below</a>.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="charts">
+  <h2>Throughput by server type</h2>
+  <div class="controls"><div class="g"><span>Metric</span><div class="seg" id="metric"></div></div></div>
+  <div class="legend" id="legend"></div>
+  <div class="grid3" id="charts-grid"></div>
+</section>
+
+<section id="tables">
+  <h2>All numbers</h2>
+  <div class="sub">Medians of 3 reps (range in brackets). Ratios compare against our measured Dragonfly in the same setup. Latencies in ms, as memtier reports them. The published c6in rows give only average and p99.9.</div>
+  <div id="tables-body"></div>
+</section>
+
+<section id="repro">
+  <h2>Reproduction gap</h2>
+  <div class="sub">Three Dragonfly cells are more than 10% from the published value. What was checked:</div>
+  <div class="card">
+    <table>
+      <tr><th class="l">Cell</th><th>Published Ops/sec</th><th>Published, Little's law</th><th>Ours, memtier Ops/sec</th><th>Ours, Little's law</th><th>Ours, wall-clock</th></tr>
+      <tr><td>c6gn write</td><td>4.20M</td><td>3.05M</td><td>3.47M</td><td>3.26M</td><td>3.26M</td></tr>
+      <tr><td>c6gn read</td><td>4.11M</td><td>2.99M</td><td>3.63M</td><td>3.22M</td><td>3.21M</td></tr>
+      <tr><td>c6in write</td><td>3.60M</td><td>4.12M</td><td>4.59M</td><td>4.22M</td><td>4.22M</td></tr>
+    </table>
+    <ul class="tight">
+      <li>memtier's <code>Totals</code> Ops/sec is above its own wall-clock average in every Dragonfly write and read run (for example c6gn write: 3.47M reported, 3.26M = 240M requests over the run's wall time).
+        Each memtier thread finishes its 4,000,000 requests at a different time, and the summary rate is built from per-thread rates, so it overstates the rate at which the server was actually serving.</li>
+      <li>The published rows show the same pattern: 1200 connections over the published average latency gives 3.05M for c6gn write, well below the 4.20M reported.
+        On that common basis our Dragonfly runs are 7-8% above the published c6gn numbers and 2% above the published c6in write.</li>
+      <li>The run is server-bound, not client-bound: the client was 47% idle during c6gn reads, and raising connections from 1200 to 1800 and 2400 added only 4-6% at higher latency.</li>
+      <li>No ENA allowance counters (bandwidth, pps, conntrack) were exceeded on the server. Server CPUs were about 82% busy each, with 20-30% of that in softirq for the network.</li>
+      <li>Remaining differences we cannot control: the exact memtier build and the c6gn/c6in host generation behind each instance type. The page does not state either.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="iot">
+  <h2>Superset io-threads sweep (same 48-vCPU servers)</h2>
+  <div class="sub">One short run per setting (-n 50000 for write and read, -n 200000 for pipelined read), same commands otherwise. 24 was the best or within 10% of the best in every test on all three server types, so it was used for the 3-rep runs. c7gn was swept twice; both runs are shown.
+    At 48, main is the bottleneck: per-thread top showed main at 100% and the IO threads at 53-60%.</div>
+  <div class="card" id="sweep"></div>
+</section>
+
+<section>
+  <h2>Reproducing this</h2>
+  <div class="card">
+    <ul class="tight">
+      <li>Provision both sides from the Ubuntu 23.04 AMI, point apt at old-releases.ubuntu.com, build memtier 2.0.0, unpack Dragonfly v1.15.0, <code>make</code> superset at the SHA above.</li>
+      <li>Per rep: start the server, run write, read, pipelined read in that order, shut it down. Server per-CPU utilisation was captured with <code>mpstat</code> during each test.</li>
+      <li>Raw per-rep numbers: <a href="data/results.json">data/results.json</a>.</li>
+    </ul>
+  </div>
+</section>
+</main>
+<script>
+const PAGE = {"data": {"published": {"c6gn": {"write": [4195628.23, 0.39283, 0.375, 0.687, 2.543], "read": [4109802.84, 0.40126, 0.383, 0.679, 0.903], "piperead": [7083583.57, 0.45821, 0.447, 0.695, 1.535]}, "c7gn": {"write": [5195097.56, 0.26012, 0.247, 0.495, 0.631], "read": [6078632.89, 0.27177, 0.263, 0.495, 0.623], "piperead": [8975121.86, 0.32325, 0.311, 0.527, 0.839]}, "c6in": {"write": [3600000.0, 0.291, null, null, 6.815], "read": [5100000.0, 0.299, null, null, 7.615], "piperead": [6900000.0, 0.358, null, null, 1.127]}}, "runs": {"c6gn": {"dragonfly": {"piperead": [{"rep": 1, "ops": 6556923.44, "avg": 0.48453, "p50": 0.471, "p99": 0.815, "p999": 0.983, "agg": 6168566.0, "little": 6191567.085629373}, {"rep": 2, "ops": 6346032.66, "avg": 0.47297, "p50": 0.463, "p99": 0.807, "p999": 0.991, "agg": 6318571.0, "little": 6342897.012495507}, {"rep": 3, "ops": 6895585.55, "avg": 0.48826, "p50": 0.479, "p99": 0.823, "p999": 0.991, "agg": 6121636.0, "little": 6144267.398517183}], "read": [{"rep": 1, "ops": 3633890.5, "avg": 0.37324, "p50": 0.375, "p99": 0.647, "p999": 0.783, "agg": 3214023.0, "little": 3215089.4866573787}, {"rep": 2, "ops": 3646377.03, "avg": 0.36821, "p50": 0.367, "p99": 0.647, "p999": 0.799, "agg": 3257918.0, "little": 3259009.8041878277}, {"rep": 3, "ops": 3520047.61, "avg": 0.37384, "p50": 0.375, "p99": 0.639, "p999": 0.775, "agg": 3208538.0, "little": 3209929.3815536057}], "write": [{"rep": 1, "ops": 3471522.79, "avg": 0.36854, "p50": 0.367, "p99": 0.639, "p999": 0.791, "agg": 3255531.0, "little": 3256091.6047104793}, {"rep": 2, "ops": 3804455.97, "avg": 0.3638, "p50": 0.367, "p99": 0.647, "p999": 0.807, "agg": 3297919.0, "little": 3298515.6679494227}, {"rep": 3, "ops": 3445912.69, "avg": 0.3731, "p50": 0.375, "p99": 0.639, "p999": 0.783, "agg": 3215459.0, "little": 3216295.899222729}]}, "superset-iot48": {"piperead": [{"rep": 1, "ops": 6680461.08, "avg": 0.44558, "p50": 0.431, "p99": 0.735, "p999": 3.247, "agg": 6703131.0, "little": 6732797.701871717}, {"rep": 2, "ops": 6734145.8, "avg": 0.44128, "p50": 0.423, "p99": 0.743, "p999": 3.279, "agg": 6767456.0, "little": 6798404.641044235}, {"rep": 3, "ops": 6801652.26, "avg": 0.43691, "p50": 0.423, "p99": 0.727, "p999": 3.215, "agg": 6834239.0, "little": 6866402.691629854}], "read": [{"rep": 1, "ops": 1567091.82, "avg": 0.78948, "p50": 0.791, "p99": 1.287, "p999": 3.679, "agg": 1519668.0, "little": 1519987.8400972793}, {"rep": 2, "ops": 1541564.16, "avg": 0.79321, "p50": 0.783, "p99": 1.319, "p999": 3.695, "agg": 1512533.0, "little": 1512840.2314645555}, {"rep": 3, "ops": 1570772.08, "avg": 0.79425, "p50": 0.791, "p99": 1.327, "p999": 3.647, "agg": 1510542.0, "little": 1510859.301227573}], "write": [{"rep": 1, "ops": 942976.61, "avg": 1.28216, "p50": 1.295, "p99": 3.535, "p999": 4.575, "agg": 935791.0, "little": 935920.6339302426}, {"rep": 2, "ops": 933892.09, "avg": 1.29516, "p50": 1.303, "p99": 3.535, "p999": 4.575, "agg": 926401.0, "little": 926526.452330214}, {"rep": 3, "ops": 959242.42, "avg": 1.27533, "p50": 1.287, "p99": 3.455, "p999": 4.479, "agg": 940800.0, "little": 940932.9350050575}]}, "superset-iot24": {"piperead": [{"rep": 1, "ops": 15282816.15, "avg": 0.21441, "p50": 0.199, "p99": 0.415, "p999": 1.663, "agg": 13854691.0, "little": 13991884.706870016}, {"rep": 2, "ops": 14267608.01, "avg": 0.20944, "p50": 0.191, "p99": 0.415, "p999": 1.639, "agg": 14187204.0, "little": 14323911.382734912}, {"rep": 3, "ops": 13751053.67, "avg": 0.2168, "p50": 0.199, "p99": 0.423, "p999": 1.631, "agg": 13703974.0, "little": 13837638.376383765}], "read": [{"rep": 1, "ops": 2426670.69, "avg": 0.50628, "p50": 0.479, "p99": 0.823, "p999": 1.959, "agg": 2369515.0, "little": 2370229.912301494}, {"rep": 2, "ops": 2294203.38, "avg": 0.53022, "p50": 0.511, "p99": 0.855, "p999": 1.975, "agg": 2262603.0, "little": 2263211.4971144055}, {"rep": 3, "ops": 2239805.5, "avg": 0.54438, "p50": 0.535, "p99": 0.871, "p999": 1.967, "agg": 2203326.0, "little": 2204342.554833021}], "write": [{"rep": 1, "ops": 1333331.52, "avg": 0.91073, "p50": 0.879, "p99": 1.591, "p999": 2.527, "agg": 1317436.0, "little": 1317624.323345009}, {"rep": 2, "ops": 1446799.56, "avg": 0.84076, "p50": 0.799, "p99": 1.439, "p999": 2.431, "agg": 1427069.0, "little": 1427280.0799276845}, {"rep": 3, "ops": 1351820.17, "avg": 0.8949, "p50": 0.863, "p99": 1.567, "p999": 2.479, "agg": 1340697.0, "little": 1340931.947703654}]}}, "c6in": {"dragonfly": {"piperead": [{"rep": 1, "ops": 7361925.43, "avg": 0.38548, "p50": 0.335, "p99": 1.079, "p999": 1.407, "agg": 7745725.0, "little": 7782504.928919788}, {"rep": 2, "ops": 7572240.6, "avg": 0.38252, "p50": 0.335, "p99": 1.031, "p999": 1.335, "agg": 7805161.0, "little": 7842727.177663913}, {"rep": 3, "ops": 7574837.6, "avg": 0.38394, "p50": 0.335, "p99": 1.047, "p999": 1.351, "agg": 7776630.0, "little": 7813720.89388967}], "read": [{"rep": 1, "ops": 4494698.42, "avg": 0.28246, "p50": 0.223, "p99": 1.431, "p999": 4.511, "agg": 4246753.0, "little": 4248389.152446364}, {"rep": 2, "ops": 4599712.33, "avg": 0.28362, "p50": 0.223, "p99": 1.391, "p999": 2.111, "agg": 4229190.0, "little": 4231013.3276919825}, {"rep": 3, "ops": 4503979.29, "avg": 0.28371, "p50": 0.223, "p99": 1.559, "p999": 2.911, "agg": 4226688.0, "little": 4229671.1430686265}], "write": [{"rep": 1, "ops": 4591387.73, "avg": 0.28547, "p50": 0.223, "p99": 1.711, "p999": 3.119, "agg": 4198939.0, "little": 4203594.072932357}, {"rep": 2, "ops": 4691282.8, "avg": 0.28438, "p50": 0.223, "p99": 1.647, "p999": 4.607, "agg": 4219177.0, "little": 4219706.027146775}, {"rep": 3, "ops": 4317164.37, "avg": 0.28308, "p50": 0.223, "p99": 1.687, "p999": 3.455, "agg": 4238178.0, "little": 4239084.35777872}]}, "superset-iot48": {"piperead": [{"rep": 1, "ops": 7846227.75, "avg": 0.3814, "p50": 0.375, "p99": 0.607, "p999": 2.543, "agg": 7823620.0, "little": 7865757.734661773}, {"rep": 2, "ops": 7835891.46, "avg": 0.38094, "p50": 0.375, "p99": 0.599, "p999": 2.543, "agg": 7835271.0, "little": 7875255.945818239}, {"rep": 3, "ops": 7853379.4, "avg": 0.38039, "p50": 0.375, "p99": 0.599, "p999": 2.543, "agg": 7846509.0, "little": 7886642.656221247}], "read": [{"rep": 1, "ops": 2048148.58, "avg": 0.60318, "p50": 0.567, "p99": 0.903, "p999": 2.639, "agg": 1988992.0, "little": 1989455.8838157763}, {"rep": 2, "ops": 1988594.12, "avg": 0.61115, "p50": 0.575, "p99": 0.903, "p999": 2.639, "agg": 1963109.0, "little": 1963511.4129100877}, {"rep": 3, "ops": 2030732.46, "avg": 0.60775, "p50": 0.567, "p99": 0.919, "p999": 2.655, "agg": 1973856.0, "little": 1974496.092143151}], "write": [{"rep": 1, "ops": 1295551.99, "avg": 0.92642, "p50": 0.847, "p99": 2.191, "p999": 3.023, "agg": 1295141.0, "little": 1295308.823211934}, {"rep": 2, "ops": 1283607.09, "avg": 0.93927, "p50": 0.871, "p99": 2.223, "p999": 2.991, "agg": 1277459.0, "little": 1277587.9140183332}, {"rep": 3, "ops": 1302230.19, "avg": 0.92814, "p50": 0.855, "p99": 2.175, "p999": 2.991, "agg": 1292763.0, "little": 1292908.3974400414}]}, "superset-iot24": {"piperead": [{"rep": 1, "ops": 19968883.82, "avg": 0.15032, "p50": 0.143, "p99": 0.247, "p999": 1.271, "agg": 19683690.0, "little": 19957424.161788184}, {"rep": 2, "ops": 20355831.47, "avg": 0.15036, "p50": 0.143, "p99": 0.247, "p999": 1.271, "agg": 19680881.0, "little": 19952114.924181964}, {"rep": 3, "ops": 19919894.8, "avg": 0.15095, "p50": 0.143, "p99": 0.247, "p999": 1.271, "agg": 19607208.0, "little": 19874130.506790325}], "read": [{"rep": 1, "ops": 4137316.57, "avg": 0.29565, "p50": 0.287, "p99": 0.495, "p999": 1.399, "agg": 4057150.0, "little": 4058853.373921867}, {"rep": 2, "ops": 4128492.8, "avg": 0.29068, "p50": 0.287, "p99": 0.479, "p999": 1.423, "agg": 4126046.0, "little": 4128250.9976606583}, {"rep": 3, "ops": 4051768.36, "avg": 0.30034, "p50": 0.295, "p99": 0.503, "p999": 1.415, "agg": 3993471.0, "little": 3995471.7986282213}], "write": [{"rep": 1, "ops": 2283563.23, "avg": 0.53249, "p50": 0.455, "p99": 1.199, "p999": 1.759, "agg": 2253368.0, "little": 2253563.447200886}, {"rep": 2, "ops": 2399290.0, "avg": 0.51187, "p50": 0.431, "p99": 1.191, "p999": 1.743, "agg": 2344161.0, "little": 2344345.2439095858}, {"rep": 3, "ops": 2397593.54, "avg": 0.50961, "p50": 0.431, "p99": 1.199, "p999": 1.751, "agg": 2354419.0, "little": 2354741.8614234417}]}}, "c7gn": {"dragonfly": {"piperead": [{"rep": 1, "ops": 9613421.88, "avg": 0.33903, "p50": 0.335, "p99": 0.567, "p999": 0.695, "agg": 8799917.0, "little": 8848774.444739403}, {"rep": 2, "ops": 10684356.16, "avg": 0.34187, "p50": 0.335, "p99": 0.575, "p999": 0.703, "agg": 8727550.0, "little": 8775265.451779915}, {"rep": 3, "ops": 9271766.13, "avg": 0.34043, "p50": 0.335, "p99": 0.575, "p999": 0.687, "agg": 8764414.0, "little": 8812384.33745557}], "read": [{"rep": 1, "ops": 5533026.15, "avg": 0.25239, "p50": 0.255, "p99": 0.447, "p999": 0.535, "agg": 4752709.0, "little": 4754546.5351242125}, {"rep": 2, "ops": 5383874.15, "avg": 0.25531, "p50": 0.255, "p99": 0.471, "p999": 0.559, "agg": 4698100.0, "little": 4700168.422701814}, {"rep": 3, "ops": 5508171.64, "avg": 0.25632, "p50": 0.255, "p99": 0.455, "p999": 0.543, "agg": 4679660.0, "little": 4681647.940074907}], "write": [{"rep": 1, "ops": 5390083.12, "avg": 0.24607, "p50": 0.247, "p99": 0.463, "p999": 0.559, "agg": 4875471.0, "little": 4876661.11269151}, {"rep": 2, "ops": 5349471.62, "avg": 0.24042, "p50": 0.247, "p99": 0.479, "p999": 0.583, "agg": 4989993.0, "little": 4991265.285749937}, {"rep": 3, "ops": 5607352.04, "avg": 0.24497, "p50": 0.247, "p99": 0.471, "p999": 0.583, "agg": 4897235.0, "little": 4898559.007225375}]}, "superset-iot48": {"piperead": [{"rep": 1, "ops": 8516919.07, "avg": 0.34807, "p50": 0.343, "p99": 0.455, "p999": 2.159, "agg": 8571852.0, "little": 8618955.95713506}, {"rep": 2, "ops": 8395983.7, "avg": 0.35442, "p50": 0.351, "p99": 0.471, "p999": 2.207, "agg": 8417079.0, "little": 8464533.604198407}, {"rep": 3, "ops": 8777550.54, "avg": 0.33855, "p50": 0.335, "p99": 0.447, "p999": 2.159, "agg": 8811506.0, "little": 8861320.336730173}], "read": [{"rep": 1, "ops": 2083175.38, "avg": 0.58729, "p50": 0.511, "p99": 0.879, "p999": 2.447, "agg": 2042866.0, "little": 2043283.5566755778}, {"rep": 2, "ops": 1984725.83, "avg": 0.61246, "p50": 0.535, "p99": 0.903, "p999": 2.479, "agg": 1958972.0, "little": 1959311.6285145152}, {"rep": 3, "ops": 2078706.05, "avg": 0.57824, "p50": 0.503, "p99": 0.863, "p999": 2.431, "agg": 2074910.0, "little": 2075262.8666297733}], "write": [{"rep": 1, "ops": 1598575.83, "avg": 0.75142, "p50": 0.703, "p99": 1.599, "p999": 2.639, "agg": 1596818.0, "little": 1596976.391365681}, {"rep": 2, "ops": 1500600.74, "avg": 0.8012, "p50": 0.743, "p99": 1.759, "p999": 2.767, "agg": 1497606.0, "little": 1497753.3699450823}, {"rep": 3, "ops": 1584250.33, "avg": 0.7617, "p50": 0.703, "p99": 1.663, "p999": 2.687, "agg": 1575252.0, "little": 1575423.3950374161}]}, "superset-iot24": {"piperead": [{"rep": 1, "ops": 20178057.91, "avg": 0.14286, "p50": 0.143, "p99": 0.223, "p999": 1.079, "agg": 20697798.0, "little": 20999580.008399833}, {"rep": 2, "ops": 20643797.47, "avg": 0.14232, "p50": 0.143, "p99": 0.223, "p999": 1.071, "agg": 20773594.0, "little": 21079258.01011804}, {"rep": 3, "ops": 19768823.38, "avg": 0.14646, "p50": 0.143, "p99": 0.231, "p999": 1.095, "agg": 20200789.0, "little": 20483408.439164277}], "read": [{"rep": 1, "ops": 3770061.68, "avg": 0.32263, "p50": 0.319, "p99": 0.471, "p999": 1.271, "agg": 3717709.0, "little": 3719430.927068159}, {"rep": 2, "ops": 3891559.87, "avg": 0.31344, "p50": 0.311, "p99": 0.415, "p999": 1.271, "agg": 3826716.0, "little": 3828483.9203675343}, {"rep": 3, "ops": 3753995.01, "avg": 0.32154, "p50": 0.319, "p99": 0.407, "p999": 1.295, "agg": 3730640.0, "little": 3732039.559619332}], "write": [{"rep": 1, "ops": 1889107.19, "avg": 0.63579, "p50": 0.639, "p99": 1.191, "p999": 1.663, "agg": 1887226.0, "little": 1887415.6561128674}, {"rep": 2, "ops": 2056884.04, "avg": 0.58772, "p50": 0.583, "p99": 1.063, "p999": 1.655, "agg": 2041558.0, "little": 2041788.6068195738}, {"rep": 3, "ops": 2289276.47, "avg": 0.53171, "p50": 0.471, "p99": 1.047, "p999": 1.591, "agg": 2256587.0, "little": 2256869.346072107}]}}}, "median": {"c6gn": {"dragonfly": {"piperead": {"ops": 6556923.44, "avg": 0.48453, "p50": 0.471, "p99": 0.815, "p999": 0.991, "agg": 6168566.0, "little": 6191567.085629373, "n": 3, "min_ops": 6346032.66, "max_ops": 6895585.55}, "read": {"ops": 3633890.5, "avg": 0.37324, "p50": 0.375, "p99": 0.647, "p999": 0.783, "agg": 3214023.0, "little": 3215089.4866573787, "n": 3, "min_ops": 3520047.61, "max_ops": 3646377.03}, "write": {"ops": 3471522.79, "avg": 0.36854, "p50": 0.367, "p99": 0.639, "p999": 0.791, "agg": 3255531.0, "little": 3256091.6047104793, "n": 3, "min_ops": 3445912.69, "max_ops": 3804455.97}}, "superset-iot48": {"piperead": {"ops": 6734145.8, "avg": 0.44128, "p50": 0.423, "p99": 0.735, "p999": 3.247, "agg": 6767456.0, "little": 6798404.641044235, "n": 3, "min_ops": 6680461.08, "max_ops": 6801652.26}, "read": {"ops": 1567091.82, "avg": 0.79321, "p50": 0.791, "p99": 1.319, "p999": 3.679, "agg": 1512533.0, "little": 1512840.2314645555, "n": 3, "min_ops": 1541564.16, "max_ops": 1570772.08}, "write": {"ops": 942976.61, "avg": 1.28216, "p50": 1.295, "p99": 3.535, "p999": 4.575, "agg": 935791.0, "little": 935920.6339302426, "n": 3, "min_ops": 933892.09, "max_ops": 959242.42}}, "superset-iot24": {"piperead": {"ops": 14267608.01, "avg": 0.21441, "p50": 0.199, "p99": 0.415, "p999": 1.639, "agg": 13854691.0, "little": 13991884.706870016, "n": 3, "min_ops": 13751053.67, "max_ops": 15282816.15}, "read": {"ops": 2294203.38, "avg": 0.53022, "p50": 0.511, "p99": 0.855, "p999": 1.967, "agg": 2262603.0, "little": 2263211.4971144055, "n": 3, "min_ops": 2239805.5, "max_ops": 2426670.69}, "write": {"ops": 1351820.17, "avg": 0.8949, "p50": 0.863, "p99": 1.567, "p999": 2.479, "agg": 1340697.0, "little": 1340931.947703654, "n": 3, "min_ops": 1333331.52, "max_ops": 1446799.56}}}, "c6in": {"dragonfly": {"piperead": {"ops": 7572240.6, "avg": 0.38394, "p50": 0.335, "p99": 1.047, "p999": 1.351, "agg": 7776630.0, "little": 7813720.89388967, "n": 3, "min_ops": 7361925.43, "max_ops": 7574837.6}, "read": {"ops": 4503979.29, "avg": 0.28362, "p50": 0.223, "p99": 1.431, "p999": 2.911, "agg": 4229190.0, "little": 4231013.3276919825, "n": 3, "min_ops": 4494698.42, "max_ops": 4599712.33}, "write": {"ops": 4591387.73, "avg": 0.28438, "p50": 0.223, "p99": 1.687, "p999": 3.455, "agg": 4219177.0, "little": 4219706.027146775, "n": 3, "min_ops": 4317164.37, "max_ops": 4691282.8}}, "superset-iot48": {"piperead": {"ops": 7846227.75, "avg": 0.38094, "p50": 0.375, "p99": 0.599, "p999": 2.543, "agg": 7835271.0, "little": 7875255.945818239, "n": 3, "min_ops": 7835891.46, "max_ops": 7853379.4}, "read": {"ops": 2030732.46, "avg": 0.60775, "p50": 0.567, "p99": 0.903, "p999": 2.639, "agg": 1973856.0, "little": 1974496.092143151, "n": 3, "min_ops": 1988594.12, "max_ops": 2048148.58}, "write": {"ops": 1295551.99, "avg": 0.92814, "p50": 0.855, "p99": 2.191, "p999": 2.991, "agg": 1292763.0, "little": 1292908.3974400414, "n": 3, "min_ops": 1283607.09, "max_ops": 1302230.19}}, "superset-iot24": {"piperead": {"ops": 19968883.82, "avg": 0.15036, "p50": 0.143, "p99": 0.247, "p999": 1.271, "agg": 19680881.0, "little": 19952114.924181964, "n": 3, "min_ops": 19919894.8, "max_ops": 20355831.47}, "read": {"ops": 4128492.8, "avg": 0.29565, "p50": 0.287, "p99": 0.495, "p999": 1.415, "agg": 4057150.0, "little": 4058853.373921867, "n": 3, "min_ops": 4051768.36, "max_ops": 4137316.57}, "write": {"ops": 2397593.54, "avg": 0.51187, "p50": 0.431, "p99": 1.199, "p999": 1.751, "agg": 2344161.0, "little": 2344345.2439095858, "n": 3, "min_ops": 2283563.23, "max_ops": 2399290.0}}}, "c7gn": {"dragonfly": {"piperead": {"ops": 9613421.88, "avg": 0.34043, "p50": 0.335, "p99": 0.575, "p999": 0.695, "agg": 8764414.0, "little": 8812384.33745557, "n": 3, "min_ops": 9271766.13, "max_ops": 10684356.16}, "read": {"ops": 5508171.64, "avg": 0.25531, "p50": 0.255, "p99": 0.455, "p999": 0.543, "agg": 4698100.0, "little": 4700168.422701814, "n": 3, "min_ops": 5383874.15, "max_ops": 5533026.15}, "write": {"ops": 5390083.12, "avg": 0.24497, "p50": 0.247, "p99": 0.471, "p999": 0.583, "agg": 4897235.0, "little": 4898559.007225375, "n": 3, "min_ops": 5349471.62, "max_ops": 5607352.04}}, "superset-iot48": {"piperead": {"ops": 8516919.07, "avg": 0.34807, "p50": 0.343, "p99": 0.455, "p999": 2.159, "agg": 8571852.0, "little": 8618955.95713506, "n": 3, "min_ops": 8395983.7, "max_ops": 8777550.54}, "read": {"ops": 2078706.05, "avg": 0.58729, "p50": 0.511, "p99": 0.879, "p999": 2.447, "agg": 2042866.0, "little": 2043283.5566755778, "n": 3, "min_ops": 1984725.83, "max_ops": 2083175.38}, "write": {"ops": 1584250.33, "avg": 0.7617, "p50": 0.703, "p99": 1.663, "p999": 2.687, "agg": 1575252.0, "little": 1575423.3950374161, "n": 3, "min_ops": 1500600.74, "max_ops": 1598575.83}}, "superset-iot24": {"piperead": {"ops": 20178057.91, "avg": 0.14286, "p50": 0.143, "p99": 0.223, "p999": 1.079, "agg": 20697798.0, "little": 20999580.008399833, "n": 3, "min_ops": 19768823.38, "max_ops": 20643797.47}, "read": {"ops": 3770061.68, "avg": 0.32154, "p50": 0.319, "p99": 0.415, "p999": 1.271, "agg": 3730640.0, "little": 3732039.559619332, "n": 3, "min_ops": 3753995.01, "max_ops": 3891559.87}, "write": {"ops": 2056884.04, "avg": 0.58772, "p50": 0.583, "p99": 1.063, "p999": 1.655, "agg": 2041558.0, "little": 2041788.6068195738, "n": 3, "min_ops": 1889107.19, "max_ops": 2289276.47}}}}, "meta": {"superset_sha": "29152861a3ab74e08bcb771a52c993dbface7182", "dragonfly": "v1.15.0-0c1150956b600f21473eae1d0e338194de6b61bc", "memtier": "2.0.0", "os": "Ubuntu 23.04, kernel 6.2.0-1017-aws", "date": "2026-11-02"}}, "sweep": [{"srv": "c6gn", "iot": 16, "write": 1287844.57, "read": 2043692.09, "piperead": 9578267.29}, {"srv": "c6gn", "iot": 24, "write": 1484495.45, "read": 2370601.69, "piperead": 11514610.79}, {"srv": "c6gn", "iot": 32, "write": 1453147.3, "read": 2316623.16, "piperead": 12103704.54}, {"srv": "c7gn", "iot": 8, "write": 1224568.32, "read": 1724717.05, "piperead": 9758685.6}, {"srv": "c7gn", "iot": 12, "write": 1582013.89, "read": 2468084.58, "piperead": 13189343.8}, {"srv": "c7gn", "iot": 16, "write": 1828639.92, "read": 3247780.3, "piperead": 16885783.16}, {"srv": "c7gn", "iot": 24, "write": 1946855.26, "read": 3838263.51, "piperead": 18178738.81}, {"srv": "c7gn", "iot": 32, "write": 1781278.64, "read": 3358874.02, "piperead": 19630424.54}, {"srv": "c7gn", "iot": 48, "write": 1593010.76, "read": 2097251.58, "piperead": 6766888.8}, {"srv": "c7gn", "iot": 20, "write": 2136718.12, "read": 3526434.83, "piperead": 16907952.54}, {"srv": "c7gn", "iot": 24, "write": 2062666.42, "read": 3554976.86, "piperead": 18092392.42}, {"srv": "c7gn", "iot": 28, "write": 2247457.59, "read": 3356257.13, "piperead": 18751130.93}, {"srv": "c7gn", "iot": 40, "write": 2152039.67, "read": 3306928.61, "piperead": 18243392.4}, {"srv": "c6in", "iot": 16, "write": 2351722.98, "read": 3389542.68, "piperead": 14830399.55}, {"srv": "c6in", "iot": 24, "write": 2326625.58, "read": 4049036.26, "piperead": 16953108.27}, {"srv": "c6in", "iot": 32, "write": 1619332.63, "read": 3030537.51, "piperead": 15658049.09}]};
+const D = PAGE.data, SWEEP = PAGE.sweep;
+const SRV = [["c6gn","c6gn.12xlarge (Graviton2)"],["c7gn","c7gn.12xlarge (Graviton3)"],["c6in","c6in.12xlarge (x86)"]];
+const TESTS = [["write","Write (SET)"],["read","Read (GET)"],["piperead","Pipelined read (P10)"]];
+const BUILDS = [["pub","Dragonfly published","--c-pub"],["dragonfly","Dragonfly v1.15.0, ours","--c-df"],["superset-iot48","superset io-threads 48","--c-ss48"],["superset-iot24","superset io-threads 24","--c-ss24"]];
+const METRICS = [["ops","Ops/sec (memtier, as published)"],["avg","Avg latency ms"],["p999","p99.9 latency ms"]];
+let metric = "ops";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#888";
+const fmtM = v => v == null ? "-" : (v / 1e6).toFixed(2) + "M";
+const fmtL = v => v == null ? "-" : v.toFixed(3);
+function val(srv, b, t, m) {
+  if (b === "pub") { const p = D.published[srv][t]; return {ops: p[0], avg: p[1], p50: p[2], p99: p[3], p999: p[4]}[m]; }
+  const x = (D.median[srv][b] || {})[t]; return x ? x[m] : null;
+}
+function el(tag, attrs, txt) { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (txt != null) e.textContent = txt; return e; }
+function chart(srv) {
+  const W = 380, H = 230, L = 8, B = 36, T = 14, gw = (W - L * 2) / TESTS.length, bw = (gw - 18) / BUILDS.length;
+  let max = 0; TESTS.forEach(([t]) => BUILDS.forEach(([b]) => { const v = val(srv, b, t, metric); if (v != null) max = Math.max(max, v); }));
+  const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img"});
+  svg.appendChild(el("line", {x1: L, x2: W - L, y1: H - B, y2: H - B, class: "axis"}));
+  TESTS.forEach(([t, tl], i) => {
+    const x0 = L + i * gw + 9;
+    BUILDS.forEach(([b, bl, c], j) => {
+      const v = val(srv, b, t, metric); if (v == null) return;
+      const h = (H - B - T - 12) * v / max, x = x0 + j * bw, y = H - B - h;
+      const r = el("rect", {x: x + 1, y, width: bw - 2, height: h, rx: 2, fill: css(c)});
+      r.appendChild(el("title", {}, `${bl}, ${tl}: ${metric === "ops" ? fmtM(v) : fmtL(v) + " ms"}`)); svg.appendChild(r);
+      svg.appendChild(el("text", {x: x + bw / 2, y: y - 3, "text-anchor": "middle", class: "val"}, metric === "ops" ? (v / 1e6).toFixed(1) : v.toFixed(2)));
+    });
+    svg.appendChild(el("text", {x: x0 + (gw - 18) / 2, y: H - B + 15, "text-anchor": "middle"}, tl));
+  });
+  return svg;
+}
+function renderCharts() {
+  const g = document.getElementById("charts-grid"); g.innerHTML = "";
+  SRV.forEach(([s, sl]) => { const c = document.createElement("div"); c.className = "card"; c.innerHTML = `<h3>${sl}</h3>`; c.appendChild(chart(s)); g.appendChild(c); });
+}
+function controls() {
+  const m = document.getElementById("metric");
+  METRICS.forEach(([k, l]) => { const b = document.createElement("button"); b.textContent = l; if (k === metric) b.className = "on";
+    b.onclick = () => { metric = k; [...m.children].forEach(x => x.className = ""); b.className = "on"; renderCharts(); }; m.appendChild(b); });
+  document.getElementById("legend").innerHTML = BUILDS.map(([, l, c]) => `<span><span class="sw" style="background:${css(c)}"></span>${l}</span>`).join("");
+}
+function tables() {
+  let h = "";
+  SRV.forEach(([s, sl]) => {
+    h += `<div class="card"><h3>${sl}</h3><table><tr><th class="l">Test</th><th class="l">Build</th><th>Ops/sec</th><th>vs our Dragonfly</th><th>vs published</th><th>Wall-clock ops/s</th><th>Avg</th><th>p50</th><th>p99</th><th>p99.9</th></tr>`;
+    TESTS.forEach(([t, tl]) => {
+      const df = val(s, "dragonfly", t, "ops"), pub = val(s, "pub", t, "ops");
+      BUILDS.forEach(([b, bl]) => {
+        const g = m => val(s, b, t, m), ops = g("ops");
+        const x = b === "pub" ? null : D.median[s][b][t];
+        const rng = x ? ` <span class="mut">(${fmtM(x.min_ops)}-${fmtM(x.max_ops)})</span>` : "";
+        const r = b === "pub" ? null : ops / df;
+        const cls = r == null || b === "dragonfly" ? "" : (r > 1.05 ? "win" : r < 0.95 ? "loss" : "");
+        h += `<tr><td>${b === "pub" ? tl : ""}</td><td class="l">${bl}</td><td>${fmtM(ops)}${rng}</td>` +
+             `<td class="${cls}">${r == null ? "-" : r.toFixed(2) + "x"}</td><td>${(ops / pub).toFixed(2)}x</td><td>${x ? fmtM(x.agg) : "-"}</td>` +
+             `<td>${fmtL(g("avg"))}</td><td>${fmtL(g("p50"))}</td><td>${fmtL(g("p99"))}</td><td>${fmtL(g("p999"))}</td></tr>`;
+      });
+    });
+    h += `</table></div>`;
+  });
+  document.getElementById("tables-body").innerHTML = h;
+  let s = `<table><tr><th class="l">Server</th><th>io-threads</th><th>Write</th><th>Read</th><th>Pipelined read</th></tr>`;
+  SWEEP.forEach(r => s += `<tr><td>${r.srv}.12xlarge</td><td>${r.iot}</td><td>${fmtM(r.write)}</td><td>${fmtM(r.read)}</td><td>${fmtM(r.piperead)}</td></tr>`);
+  document.getElementById("sweep").innerHTML = s + "</table>";
+}
+controls(); renderCharts(); tables();
+</script>
+</body>
+</html>
