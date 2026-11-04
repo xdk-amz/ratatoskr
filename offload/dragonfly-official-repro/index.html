@@ -69,12 +69,13 @@
 <body>
 <div class="top"><header>
   <h1>Dragonfly's official benchmark: reproduction, then Valkey superset in the same setup</h1>
-  <nav><a href="../../">ratatoskr</a><a href="#verdict">Verdict</a><a href="#setup">Setup</a><a href="#charts">Charts</a><a href="#tables">Tables</a><a href="#repro">Reproduction gap</a><a href="#iot">io-threads</a><a href="#writegap">Write gap</a></nav>
+  <nav><a href="../../">ratatoskr</a><a href="#verdict">Verdict</a><a href="#setup">Setup</a><a href="#charts">Charts</a><a href="#tables">Tables</a><a href="#repro">Reproduction gap</a><a href="#iot">io-threads</a><a href="#writegap">Write gap</a><a href="#corrected">Corrected config</a></nav>
 </header></div>
 <main>
 
 <section id="verdict">
   <h2>Verdict</h2>
+  <div class="card" style="border-color:var(--ob-danger)"><b>Corrected configuration.</b> The superset numbers in the sections below the setup ran <code>superset-frontier</code> with its staged epoll thread off (frontier makes it opt-in). <a href="#corrected">Corrected configuration</a> reruns superset with it on at the same thread count, and explains the gap to the perf-67805ac58 page's 23M SET/s: that is a pipeline-16 result on a 96-core server.</div>
   <div class="card">
     <ul class="tight">
       <li><b>Reproduction.</b> Dragonfly v1.15.0 with Dragonfly's own commands lands within 10% of its published numbers in 6 of 9 cells.
@@ -218,6 +219,55 @@ pipelined read memtier_benchmark -s $SERVER_PRIVATE_IP --ratio 0:1 -t 60 -c 5 -n
   </div>
 </section>
 
+<section id="corrected">
+  <h2>Corrected configuration: epoll thread on</h2>
+  <div class="sub">Correction note: the superset runs in the sections above used <code>superset-frontier</code> with its staged epoll thread off. Frontier makes that thread opt-in, while the older build behind the perf-67805ac58 page starts it by default, so main waited on epoll itself. This section reruns superset with the epoll thread on at the same total thread count, and shows which setup differences account for the gap to the 23M SET/s on that page. Superset build: <code>4056df343</code>. Dragonfly, client, OS and placement are unchanged.</div>
+  <div class="card">
+    <h3>What was misconfigured</h3>
+    <ul class="tight">
+      <li><b>One default, not a flag.</b> Every superset setting on the repro command line matches the perf-67805ac58 harness: persistence off, no maxmemory, protected mode off, write lanes = io-threads, lane prefetch and parallel writes on, every hidden setting at its default. The harness also raises <code>maxclients</code> and <code>tcp-backlog</code>, which doesn't matter at 1200 connections.</li>
+      <li><b>The epoll thread.</b> 67805ac58 starts it whenever io-threads is 5 or more, as an extra thread on its own core. Frontier (<code>4056df343</code>) runs it only with <code>io-threads-epoll-thread yes</code>, in place of one IO thread. The rerun below sets <code>--io-threads N --io-threads-epoll-thread yes</code>, which is main + N-2 IO threads + the epoll thread, N threads in all. io-threads 24 becomes 23 + the epoll thread, the same 24 CPUs as before.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Setup diff against the perf-67805ac58 page</h3>
+    <table>
+      <tr><th class="l">Item</th><th class="l">perf-67805ac58 page</th><th class="l">Dragonfly setup (this page)</th></tr>
+      <tr><td class="l">Build</td><td class="wrap">67805ac58, GCC 11.5, -O3 -flto, jemalloc</td><td class="wrap">4056df343, GCC 12.3, -O3 -flto, jemalloc</td></tr>
+      <tr><td class="l">Epoll thread</td><td class="wrap">on by default, extra core</td><td class="wrap">off by default (on in the rerun below)</td></tr>
+      <tr><td class="l">Server</td><td class="wrap">c8gn.metal-24xl: 96 Graviton4 cores, 300 Gbps</td><td class="wrap">c6gn.12xlarge (48 vCPU, 75 Gbps), c7gn.12xlarge (48 vCPU, 150 Gbps)</td></tr>
+      <tr><td class="l">Client</td><td class="wrap">memtier 2.5.2 on 4 hosts</td><td class="wrap">memtier 2.0.0 on one c7gn.16xlarge</td></tr>
+      <tr><td class="l">SET test</td><td class="wrap">pipeline 16, 2304 connections, 128 B values, 1M keys</td><td class="wrap">pipeline 1, 1200 connections (60 threads x 20), 32 B values, memtier default keys</td></tr>
+      <tr><td class="l">CPU layout</td><td class="wrap">every server thread on its own core, NIC interrupts on separate cores, irqbalance off</td><td class="wrap">unpinned, irqbalance on</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Which difference accounts for 23M vs 1.7M</h3>
+    <div class="sub" style="margin-bottom:6px">One 32-IO-thread point on the Dragonfly setup's c6gn server and clients, changing one thing at a time. 3 reps each; SET/s from the server's command counter.</div>
+    <div id="ep-attr"></div>
+    <p class="mut" style="margin:8px 0 0">Pipeline depth is the largest factor, at 4.2x. The perf-page CPU layout gives 2x, and the bigger server gives the remaining roughly 2x: the perf page's own SET cell runs at 11.4M here against 23.75M on its 96-core server. Frontier with the epoll thread matches 67805ac58 on both clients. The 23M figure is a pipeline-16 result, so it doesn't compare to Dragonfly's pipeline-1 write test.</p>
+  </div>
+  <div class="card">
+    <h3>Rerun with the epoll thread: superset as a fraction of Dragonfly</h3>
+    <div class="sub" style="margin-bottom:6px">Same client commands, order and reps as the repro: 3 reps at io-threads 24 and 48, one run at the other sweep points. The epoll thread is pinned to the last CPU and every other server thread is kept off it; irqbalance stays on, as in the repro. Writes and reads are the server's command counter. Pipelined reads finish in about 5 s, before the counter window opens, so they use memtier's wall-clock average.</div>
+    <div class="legend"><span><span class="sw" style="background:var(--c-ss48)"></span>write</span><span><span class="sw" style="background:var(--c-ss24)"></span>read</span><span><span class="sw" style="background:var(--c-df)"></span>pipelined read</span><span>dashed: 1.0x = Dragonfly on the same server</span></div>
+    <div class="grid3" id="ep-charts" style="grid-template-columns:repeat(auto-fit,minmax(420px,1fr))"></div>
+  </div>
+  <div class="card" id="ep-table"></div>
+  <div class="card">
+    <h3>c7gn host note</h3>
+    <p style="margin:4px 0 0">The c7gn rerun ran on a new c7gn.12xlarge instance, because another session holds the one used above. Dragonfly on the new host is within 6% of the old one (4.79M writes/s against 5.11M). Superset without the epoll thread is slower there, at 1.31M against 1.66M, with p99.9 at 7.7 ms against 1.7 ms. Kernel, CPU, NIC queues and interrupt layout are identical, and the cause is not found. So the c7gn ratios use Dragonfly on the same new host, and a same-host control without the epoll thread is included. On that host the epoll thread adds 11% to writes, 72% to reads and 5% to pipelined reads at io-threads 24. On c6gn, the same instance as above, it adds 20% to writes at io-threads 24 on the same metric (1.04M to 1.25M).</p>
+  </div>
+  <div class="card">
+    <h3>Where superset stands after the correction</h3>
+    <ul class="tight">
+      <li><span class="win">Pipelined read: superset wins.</span> 2.11x Dragonfly on c6gn at io-threads 24 and 32. On c7gn it reaches 1.17x at io-threads 24, rising to 1.49x at 48.</li>
+      <li><span class="loss">Read: superset loses.</span> 0.72x on c6gn, at most 0.70x on c7gn.</li>
+      <li><span class="loss">Write: superset loses.</span> At most 0.38x on c6gn and 0.32x on c7gn. The epoll thread alone doesn't close the write gap. Writes reached 0.72-0.86x in the <a href="#writegap">write gap profile</a> only once NIC interrupts were also moved off the server's CPUs.</li>
+    </ul>
+  </div>
+</section>
+
 <section>
   <h2>Reproducing this</h2>
   <div class="card">
@@ -229,6 +279,71 @@ pipelined read memtier_benchmark -s $SERVER_PRIVATE_IP --ratio 0:1 -t 60 -c 5 -n
   </div>
 </section>
 </main>
+<script>
+const EP = {"sha": "4056df3432acb4dcdca74c7b20833027e18f15f8", "attr": [{"build": "67805ac58, io-threads 32 (+ epoll)", "layout": "unpinned, irqbalance (repro)", "client": "Dragonfly write: pipeline 1, 1200 conns", "med": 1341515.6351251467, "reps": [1.345, 1.186, 1.342], "p50": 0.823, "p99": 1.511}, {"build": "67805ac58, io-threads 32 (+ epoll)", "layout": "perf-page pinning, NIC IRQs off server CPUs", "client": "Dragonfly write: pipeline 1, 1200 conns", "med": 2640636.526970842, "reps": [2.698, 2.319, 2.641], "p50": 0.415, "p99": 0.791}, {"build": "67805ac58, io-threads 32 (+ epoll)", "layout": "perf-page pinning, NIC IRQs off server CPUs", "client": "Dragonfly write with pipeline 16", "med": 10987562.989374906, "reps": [11.016, 10.988, 10.982], "p50": 1.743, "p99": 2.815}, {"build": "67805ac58, io-threads 32 (+ epoll)", "layout": "perf-page pinning, NIC IRQs off server CPUs", "client": "perf-page SET: pipeline 16, 2304 conns, 128 B, 1M keys", "med": 11399392.735783692, "reps": [11.439, 11.399, 11.352], "p50": 3.439, "p99": 5.599}, {"build": "4056df343, io-threads 33 + epoll thread", "layout": "perf-page pinning, NIC IRQs off server CPUs", "client": "Dragonfly write: pipeline 1, 1200 conns", "med": 2510308.143850086, "reps": [2.658, 2.51, 2.497], "p50": 0.439, "p99": 0.759}, {"build": "4056df343, io-threads 33 + epoll thread", "layout": "perf-page pinning, NIC IRQs off server CPUs", "client": "perf-page SET: pipeline 16, 2304 conns, 128 B, 1M keys", "med": 11442122.168381952, "reps": [11.442, 11.702, 11.401], "p50": 3.103, "p99": 5.887}], "srv": {"c6gn": {"df": {"piperead": {"n": 3, "rate": 6168566.0, "p50": 0.471, "p99": 0.815}, "read": {"n": 3, "rate": 3214023.0, "p50": 0.375, "p99": 0.647}, "write": {"n": 3, "rate": 3255531.0, "p50": 0.367, "p99": 0.639}}, "after": {"16": {"write": {"n": 1, "rate": 1171738.147742905, "p50": 0.975, "p99": 1.735, "memtier_wall": 1217147.0, "reps": [1.172]}, "piperead": {"n": 1, "rate": 10906447.0, "p50": 0.263, "p99": 0.447, "memtier_wall": 10906447.0, "reps": [10.906]}, "read": {"n": 1, "rate": 2118530.359547429, "p50": 0.575, "p99": 0.695, "memtier_wall": 2070281.0, "reps": [2.119]}}, "24": {"read": {"n": 3, "rate": 2320229.813322325, "p50": 0.495, "p99": 0.831, "memtier_wall": 2288914.0, "reps": [2.315, 2.32, 2.351]}, "piperead": {"n": 3, "rate": 12999658.0, "p50": 0.207, "p99": 0.431, "memtier_wall": 12999658.0, "reps": [12.569, 13.0, 13.311]}, "write": {"n": 3, "rate": 1246563.5790773358, "p50": 0.807, "p99": 1.423, "memtier_wall": 1422951.0, "reps": [1.183, 1.247, 1.321]}}, "32": {"write": {"n": 1, "rate": 1217271.9692981548, "p50": 0.831, "p99": 1.583, "memtier_wall": 1341782.0, "reps": [1.217]}, "read": {"n": 1, "rate": 2319441.199062362, "p50": 0.543, "p99": 0.903, "memtier_wall": 2224183.0, "reps": [2.319]}, "piperead": {"n": 1, "rate": 13024273.0, "p50": 0.199, "p99": 0.447, "memtier_wall": 13024273.0, "reps": [13.024]}}, "48": {"write": {"n": 3, "rate": 1003948.9367292451, "p50": 1.111, "p99": 3.711, "memtier_wall": 1050509.0, "reps": [1.001, 1.004, 1.052]}, "piperead": {"n": 3, "rate": 11028059.0, "p50": 0.223, "p99": 0.551, "memtier_wall": 11028059.0, "reps": [11.016, 11.028, 11.075]}, "read": {"n": 3, "rate": 1872299.9149800227, "p50": 0.615, "p99": 1.111, "memtier_wall": 1937935.0, "reps": [1.867, 1.872, 1.875]}}}, "before": {"16": {"write": {"n": 1, "rate": 1287844.57}, "read": {"n": 1, "rate": 2043692.09}, "piperead": {"n": 1, "rate": 9578267.29}}, "24": {"piperead": {"n": 3, "rate": 13854691.0, "p50": 0.199, "p99": 0.415}, "read": {"n": 3, "rate": 2262603.0, "p50": 0.511, "p99": 0.855}, "write": {"n": 3, "rate": 1340697.0, "p50": 0.863, "p99": 1.567}}, "32": {"write": {"n": 1, "rate": 1453147.3}, "read": {"n": 1, "rate": 2316623.16}, "piperead": {"n": 1, "rate": 12103704.54}}, "48": {"piperead": {"n": 3, "rate": 6767456.0, "p50": 0.423, "p99": 0.735}, "read": {"n": 3, "rate": 1512533.0, "p50": 0.791, "p99": 1.319}, "write": {"n": 3, "rate": 935791.0, "p50": 1.295, "p99": 3.535}}}}, "c7gn": {"df": {"piperead": {"n": 3, "rate": 9063003.0, "p50": 0.319, "p99": 0.559, "memtier_wall": 9063003.0, "reps": [9.04, 9.063, 9.201]}, "write": {"n": 3, "rate": 4793723.140954142, "p50": 0.247, "p99": 0.471, "memtier_wall": 4889694.0, "reps": [4.752, 4.794, 4.899]}, "read": {"n": 3, "rate": 4739442.305115774, "p50": 0.255, "p99": 0.471, "memtier_wall": 4757447.0, "reps": [4.702, 4.739, 4.815]}}, "after": {"8": {"write": {"n": 1, "rate": 807325.02218012, "p50": 1.703, "p99": 3.551, "memtier_wall": 700193.0, "reps": [0.807]}, "piperead": {"n": 1, "rate": 4096389.0, "p50": 0.719, "p99": 0.767, "memtier_wall": 4096389.0, "reps": [4.096]}, "read": {"n": 1, "rate": 1191450.119186302, "p50": 0.951, "p99": 1.639, "memtier_wall": 1240029.0, "reps": [1.191]}}, "12": {"piperead": {"n": 1, "rate": 6204339.0, "p50": 0.471, "p99": 0.519, "memtier_wall": 6204339.0, "reps": [6.204]}, "read": {"n": 1, "rate": 1814487.2441839555, "p50": 0.639, "p99": 0.695, "memtier_wall": 1832647.0, "reps": [1.814]}, "write": {"n": 1, "rate": 1151516.854596336, "p50": 1.111, "p99": 3.951, "memtier_wall": 1046669.0, "reps": [1.152]}}, "16": {"write": {"n": 1, "rate": 1297953.5650731225, "p50": 0.879, "p99": 1.439, "memtier_wall": 1301660.0, "reps": [1.298]}, "piperead": {"n": 1, "rate": 7919102.0, "p50": 0.359, "p99": 0.423, "memtier_wall": 7919102.0, "reps": [7.919]}, "read": {"n": 1, "rate": 2393802.7614748306, "p50": 0.487, "p99": 0.551, "memtier_wall": 2364384.0, "reps": [2.394]}}, "20": {"read": {"n": 1, "rate": 2914427.1939484705, "p50": 0.391, "p99": 0.439, "memtier_wall": 2931772.0, "reps": [2.914]}, "piperead": {"n": 1, "rate": 9389812.0, "p50": 0.303, "p99": 0.375, "memtier_wall": 9389812.0, "reps": [9.39]}, "write": {"n": 1, "rate": 1496634.0478551297, "p50": 0.783, "p99": 1.271, "memtier_wall": 1446868.0, "reps": [1.497]}}, "24": {"read": {"n": 3, "rate": 3163528.104429006, "p50": 0.359, "p99": 0.415, "memtier_wall": 3177715.0, "reps": [3.123, 3.164, 3.191]}, "piperead": {"n": 3, "rate": 10619296.0, "p50": 0.263, "p99": 0.335, "memtier_wall": 10619296.0, "reps": [10.491, 10.619, 10.743]}, "write": {"n": 3, "rate": 1447145.1757374662, "p50": 0.767, "p99": 1.247, "memtier_wall": 1465403.0, "reps": [1.439, 1.447, 1.53]}}, "28": {"read": {"n": 1, "rate": 3275110.3234110996, "p50": 0.343, "p99": 0.423, "memtier_wall": 3279783.0, "reps": [3.275]}, "write": {"n": 1, "rate": 1515168.1639575057, "p50": 0.751, "p99": 1.407, "memtier_wall": 1454209.0, "reps": [1.515]}, "piperead": {"n": 1, "rate": 11248328.0, "p50": 0.247, "p99": 0.343, "memtier_wall": 11248328.0, "reps": [11.248]}}, "32": {"write": {"n": 1, "rate": 1487321.4368373593, "p50": 0.751, "p99": 1.351, "memtier_wall": 1451113.0, "reps": [1.487]}, "read": {"n": 1, "rate": 3338972.955787114, "p50": 0.335, "p99": 0.423, "memtier_wall": 3336426.0, "reps": [3.339]}, "piperead": {"n": 1, "rate": 12298615.0, "p50": 0.223, "p99": 0.327, "memtier_wall": 12298615.0, "reps": [12.299]}}, "40": {"piperead": {"n": 1, "rate": 13207597.0, "p50": 0.199, "p99": 0.383, "memtier_wall": 13207597.0, "reps": [13.208]}, "read": {"n": 1, "rate": 2891599.219623286, "p50": 0.359, "p99": 0.615, "memtier_wall": 2905339.0, "reps": [2.892]}, "write": {"n": 1, "rate": 1389428.5260368302, "p50": 0.783, "p99": 1.551, "memtier_wall": 1364819.0, "reps": [1.389]}}, "48": {"write": {"n": 3, "rate": 1329767.7375443333, "p50": 0.799, "p99": 1.575, "memtier_wall": 1311061.0, "reps": [1.281, 1.33, 1.37]}, "piperead": {"n": 3, "rate": 13509929.0, "p50": 0.191, "p99": 0.423, "memtier_wall": 13509929.0, "reps": [13.164, 13.51, 13.634]}, "read": {"n": 3, "rate": 2744021.0283390908, "p50": 0.367, "p99": 0.695, "memtier_wall": 2775600.0, "reps": [2.381, 2.744, 2.924]}}}, "before": {}, "ctl": {"read": {"n": 3, "rate": 1844402.3661160895, "p50": 0.575, "p99": 0.839, "memtier_wall": 1862096.0, "reps": [1.772, 1.844, 1.937]}, "write": {"n": 3, "rate": 1311619.8129503594, "p50": 0.791, "p99": 1.527, "memtier_wall": 1305002.0, "reps": [1.279, 1.312, 1.317]}, "piperead": {"n": 3, "rate": 10080711.0, "p50": 0.271, "p99": 0.415, "memtier_wall": 10080711.0, "reps": [9.685, 10.081, 10.201]}}}}};
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, x) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (x != null) e.textContent = x; return e; };
+  const cv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const COL = {write: cv("--c-ss48") || "#f0883e", read: cv("--c-ss24") || "#6ea8fe", piperead: cv("--c-df") || "#3fb9a0"};
+  const TN = {write: "Write", read: "Read", piperead: "Pipelined read"};
+  const SN = {c6gn: "c6gn.12xlarge (Graviton2)", c7gn: "c7gn.12xlarge (Graviton3, new instance)"};
+  const M = v => v == null ? "-" : (v / 1e6).toFixed(2) + "M";
+
+  // attribution table
+  let a = `<table><tr><th class="l">Build</th><th class="l">CPU layout</th><th class="l">Client</th><th>SET/s</th><th>reps</th><th>p50 / p99 ms</th></tr>`;
+  EP.attr.forEach(r => {
+    a += `<tr><td class="l">${r.build}</td><td class="l">${r.layout}</td><td class="l wrap">${r.client}</td><td><b>${M(r.med)}</b></td>` +
+      `<td class="mut">${r.reps.map(x => x.toFixed(2)).join(", ")}</td><td>${r.p50.toFixed(2)} / ${r.p99.toFixed(2)}</td></tr>`;
+  });
+  document.getElementById("ep-attr").innerHTML = a + "</table>";
+
+  // ratio-vs-io-threads charts
+  const g = document.getElementById("ep-charts");
+  let tb = `<h3>All numbers</h3><table><tr><th class="l">Server</th><th>io-threads</th>` +
+    ["write", "read", "piperead"].map(t => `<th>${TN[t]} before</th><th>${TN[t]} after</th><th>vs Dragonfly</th>`).join("") + `<th>reps</th></tr>`;
+  ["c6gn", "c7gn"].forEach(s => {
+    const d = EP.srv[s], ns = Object.keys(d.after).map(Number).sort((x, y) => x - y);
+    const W = 520, H = 260, L = 44, R = 14, T = 12, B = 34;
+    const xs = n => L + (n - 8) / 40 * (W - L - R);
+    const ymax = 2.4, ys = v => T + (1 - v / ymax) * (H - T - B);
+    const svg = mk("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img"});
+    for (let v = 0; v <= ymax + 1e-9; v += 0.4) {
+      svg.appendChild(mk("line", {x1: L, x2: W - R, y1: ys(v), y2: ys(v), class: "axis", opacity: 0.4}));
+      svg.appendChild(mk("text", {x: L - 6, y: ys(v) + 4, "text-anchor": "end"}, v.toFixed(1) + "x"));
+    }
+    svg.appendChild(mk("line", {x1: L, x2: W - R, y1: ys(1), y2: ys(1), class: "axis", "stroke-dasharray": "4 3"}));
+    [8, 16, 24, 32, 40, 48].forEach(n => svg.appendChild(mk("text", {x: xs(n), y: H - 16, "text-anchor": "middle"}, n)));
+    svg.appendChild(mk("text", {x: (L + W - R) / 2, y: H - 2, "text-anchor": "middle"}, "io-threads (total server threads, epoll thread included)"));
+    ["write", "read", "piperead"].forEach(t => {
+      const pts = ns.map(n => [xs(n), ys(d.after[n][t].rate / d.df[t].rate)]);
+      svg.appendChild(mk("polyline", {points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: COL[t], "stroke-width": 2}));
+      ns.forEach((n, i) => {
+        const r = d.after[n][t], f = r.rate / d.df[t].rate;
+        const c = mk("circle", {cx: pts[i][0], cy: pts[i][1], r: r.n > 1 ? 4 : 3, fill: COL[t]});
+        c.appendChild(mk("title", {}, `${TN[t]}, io-threads ${n}: ${M(r.rate)} = ${f.toFixed(2)}x Dragonfly (${r.n} rep${r.n > 1 ? "s" : ""})`));
+        svg.appendChild(c);
+      });
+    });
+    const c = document.createElement("div");
+    c.innerHTML = `<h3>${SN[s]}</h3><div class="mut" style="font-size:12px">Dragonfly: write ${M(d.df.write.rate)}, read ${M(d.df.read.rate)}, pipelined read ${M(d.df.piperead.rate)}</div>`;
+    c.appendChild(svg);
+    g.appendChild(c);
+    ns.forEach((n, i) => {
+      tb += `<tr><td>${i === 0 ? SN[s] : ""}</td><td>${n}</td>` + ["write", "read", "piperead"].map(t => {
+        const r = d.after[n][t], b = (d.before[n] || {})[t], f = r.rate / d.df[t].rate;
+        return `<td class="mut">${b ? M(b.rate) : "-"}</td><td>${M(r.rate)}</td><td class="${f >= 1 ? "win" : "loss"}">${f.toFixed(2)}x</td>`;
+      }).join("") + `<td>${d.after[n].write.n}</td></tr>`;
+    });
+    if (d.ctl) {
+      tb += `<tr><td></td><td class="mut">24, no epoll (control)</td>` + ["write", "read", "piperead"].map(t =>
+        `<td></td><td>${M(d.ctl[t].rate)}</td><td class="mut">${(d.ctl[t].rate / d.df[t].rate).toFixed(2)}x</td>`).join("") + `<td>${d.ctl.write.n}</td></tr>`;
+    }
+  });
+  document.getElementById("ep-table").innerHTML = tb + `</table><div class="mut" style="margin-top:6px">Before = the repro above (no epoll thread, memtier wall-clock; on c6gn memtier reads 5-14% above the server counter for superset writes). c7gn before-values are omitted because the rerun used a different instance; its same-host control is the last row. Data: <a href="data/epoll-rerun.json">data/epoll-rerun.json</a>.</div>`;
+})();
+
+</script>
 <script>
 const WG = {"sha": "4056df3432acb4dcdca74c7b20833027e18f15f8", "rows": {"c7gn": [{"cfg": "df", "n": 3, "wall_M": 5.106, "wall_min_max": [5.106, 5.217], "p50": 0.239, "p99": 0.463, "iter_us": null, "idle%": 0.18}, {"cfg": "iot24", "n": 3, "wall_M": 1.662, "wall_min_max": [1.606, 1.704], "p50": 0.647, "p99": 1.239, "iter_us": 614.9, "idle%": 63.43}, {"cfg": "iot48", "n": 3, "wall_M": 1.54, "wall_min_max": [1.513, 1.546], "p50": 0.663, "p99": 1.423, "iter_us": 633.3, "idle%": 48.67}, {"cfg": "iot24-ep", "n": 3, "wall_M": 1.849, "wall_min_max": [1.848, 2.265], "p50": 0.623, "p99": 1.135, "iter_us": 429.2, "idle%": 53.82}, {"cfg": "iot48-ep", "n": 3, "wall_M": 1.668, "wall_min_max": [1.642, 1.71], "p50": 0.687, "p99": 1.319, "iter_us": 636.5, "idle%": 44.55}, {"cfg": "iot24-irq", "n": 2, "wall_M": 1.69, "wall_min_max": [1.675, 1.706], "p50": 0.635, "p99": 1.255, "iter_us": 546.2, "idle%": 62.705}, {"cfg": "iot24-ep-irq", "n": 2, "wall_M": 3.052, "wall_min_max": [2.768, 3.337], "p50": 0.363, "p99": 0.767, "iter_us": 169.95, "idle%": 34.005}, {"cfg": "iot32-ep-irq", "n": 2, "wall_M": 3.697, "wall_min_max": [3.682, 3.711], "p50": 0.315, "p99": 0.619, "iter_us": 128.45, "idle%": 11.24}, {"cfg": "iot40-ep-irq", "n": 2, "wall_M": 3.509, "wall_min_max": [3.498, 3.52], "p50": 0.339, "p99": 0.463, "iter_us": 88.05, "idle%": 1.715}], "c6gn": [{"cfg": "df", "n": 2, "wall_M": 3.214, "wall_min_max": [3.209, 3.219], "p50": 0.375, "p99": 0.655, "iter_us": null, "idle%": 0.455}, {"cfg": "iot24", "n": 2, "wall_M": 1.043, "wall_min_max": [1.016, 1.069], "p50": 1.131, "p99": 2.263, "iter_us": 659.65, "idle%": 65.74}, {"cfg": "iot48", "n": 2, "wall_M": 0.866, "wall_min_max": [0.852, 0.881], "p50": 1.327, "p99": 4.007, "iter_us": 755.05, "idle%": 49.915}, {"cfg": "iot24-ep", "n": 2, "wall_M": 1.263, "wall_min_max": [1.222, 1.303], "p50": 0.807, "p99": 1.475, "iter_us": 525.95, "idle%": 58.855}, {"cfg": "iot24-ep-irq", "n": 2, "wall_M": 2.34, "wall_min_max": [2.31, 2.37], "p50": 0.491, "p99": 0.899, "iter_us": 198.25, "idle%": 38.275}, {"cfg": "iot32-ep-irq", "n": 2, "wall_M": 2.482, "wall_min_max": [2.456, 2.507], "p50": 0.455, "p99": 0.983, "iter_us": 174.85, "idle%": 21.01}, {"cfg": "iot40-ep-irq", "n": 2, "wall_M": 2.747, "wall_min_max": [2.665, 2.828], "p50": 0.427, "p99": 1.019, "iter_us": 173.75, "idle%": 4.425}]}};
 (function () {
