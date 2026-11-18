@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ratatoskr · Perf matrix</title>
+<style>
+  :root { color-scheme: light dark; --bg:#0f1115; --text:#d7dae0; --muted:#8b939e; --border:#2a2f3a; --card:#161a21; --accent:#7aa2f7; --pend:#e0af68; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f7f7f5; --text:#1d2128; --muted:#5d6672; --border:#d8dbe0; --card:#ffffff; --accent:#2f5bd3; --pend:#9a6400; } }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:40px 24px 64px; }
+  h1 { font-size:26px; margin:0 0 6px; } h2 { font-size:19px; margin:32px 0 8px; } h3 { font-size:16px; margin:20px 0 6px; }
+  p, li { max-width:72ch; } .muted { color:var(--muted); }
+  a { color:var(--accent); }
+  .card { border:1px solid var(--border); border-radius:10px; padding:16px 20px; margin:14px 0; background:var(--card); color:var(--text); }
+  .card > a { font-weight:600; font-size:17px; text-decoration:none; }
+  .pend { display:inline-block; border:1px solid var(--pend); color:var(--pend); border-radius:6px; padding:0 7px; font-size:12px; margin-left:8px; vertical-align:2px; }
+  table { border-collapse:collapse; font-size:13px; margin:8px 0 16px; width:100%; }
+  th, td { border-bottom:1px solid var(--border); padding:4px 8px; text-align:right; white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; } td.l, th.l { text-align:left; white-space:normal; }
+  td.empty { color:var(--muted); }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0; } dt { color:var(--muted); } dd { margin:0; }
+  code { font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<p><a href="../">ratatoskr home</a></p>
+<h1>Perf matrix <span class=pend id=status>loading</span></h1>
+<p>Every command and shape of the old matrix: SET, GET, 80/20 and 50/50 mixes, HSET, HGET, lists, sets, sorted sets, streams, MGET/MSET, value sizes 16 B-128 KB, key counts, TTL, eviction, zipf, hot key, cluster mode and primary+replica, at P1/P16/P64 and io-threads 1-64.</p>
+<h2>Builds</h2><dl id=builds></dl>
+<h2>Setup</h2><dl id=setup></dl>
+
+<h2>Results <span class=muted>(<span id=n></span> scenarios)</span></h2>
+<p class=muted id=legend>Absolute ops/s for both builds side by side; latency in ms; the ratio appears only next to both numbers. Each value is the median of the valid reps; the rep count and range go with it.</p>
+<div style="overflow-x:auto"><table id=cells></table></div>
+</main>
+<script src="../assets/view.js"></script>
+<script>fetch('data/matrix.json').then(r => r.json()).then(D => render(D, ["id", "desc", "P", "iot", "conns"]));</script>
+</body>
+</html>

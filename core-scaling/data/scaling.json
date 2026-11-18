@@ -1,0 +1,2177 @@
+{
+ "view": "core-scaling",
+ "status": "complete",
+ "generated": "2026-11-10",
+ "builds": {
+  "unstable": {
+   "label": "valkey-io unstable",
+   "repo": "https://github.com/valkey-io/valkey",
+   "branch": "unstable",
+   "sha": "0bc71f0ea535ab2d96bc1bb76b50612e3bb789e7",
+   "committed": "2026-11-17T19:21:33Z",
+   "config": "defaults; io-threads per layout"
+  },
+  "frontier": {
+   "label": "superset-frontier",
+   "repo": "https://github.com/xdk-amz/valkey",
+   "branch": "superset-frontier",
+   "sha": "429ca52c70318066cfb784641683e8da7f466220",
+   "committed": "2026-11-17T20:13:51Z",
+   "config": "io-threads per layout; flags as listed per view"
+  }
+ },
+ "harness": {
+  "offbench": "xdk-amz/offbench unstable dbf1421b8d03663d7442b3bddf784888819d8cd7",
+  "build": "GCC 11.5, -O3 -flto, jemalloc, identical flags for both builds"
+ },
+ "setup": {
+  "server": "one whole instance per step: c8gn.large (2), c8gn.xlarge (4), c8gn.2xlarge (8), c8gn.4xlarge (16); every vCPU is a physical Graviton4 core",
+  "clients": "2x c8g.metal-24xl, same AZ and placement group, RTT <= 0.15 ms",
+  "client": "memtier_benchmark 2.5.2, 128 B values, 1M keys uniform, 1,152 connections at P1 and 256 at P16 at every step",
+  "pinning": "per step as in layout; NIC IRQs on the irq CPUs; irqbalance off",
+  "window_s": 10,
+  "reps": 3,
+  "sustain_check": "one 60 s rep per step and build; ENA allowance counters must stay flat (sizes below 16xlarge burst)",
+  "order": "builds alternating per rep, server restarted per rep",
+  "launch": "20261117T214555Z-scaling-855796: layout a, us-east-2c, cluster placement group ratatoskr-scaling-use2",
+  "instances": "servers 1x c8gn.large, 1x c8gn.xlarge, 1x c8gn.2xlarge, 1x c8gn.4xlarge; clients 2x c8g.metal-24xl",
+  "caveat": "Launched with layout a: the hosts are in us-east-2, so absolute numbers may shift slightly against the older us-east-1 pages, while this view's verdicts compare the two builds on the same hosts."
+ },
+ "cells": [
+  {
+   "id": "2c-get-p1",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "get",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 318193.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:03:13Z"
+     },
+     {
+      "ops": 319304.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:04:12Z"
+     },
+     {
+      "ops": 322331.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:04:32Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 319304.2,
+    "cv": 0.0055,
+    "range": [
+     318193.5,
+     322331.3
+    ],
+    "p50_ms": 3.575,
+    "p99_ms": 3.855,
+    "p999_ms": 4.711,
+    "max_ms": 19.066
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 426927.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:03:32Z"
+     },
+     {
+      "ops": 425983.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:03:52Z"
+     },
+     {
+      "ops": 426972.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:04:52Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 426927.1,
+    "cv": 0.0011,
+    "range": [
+     425983.5,
+     426972.0
+    ],
+    "p50_ms": 2.679,
+    "p99_ms": 3.019,
+    "p999_ms": 3.315,
+    "max_ms": 20.751
+   },
+   "compare": {
+    "ratio": 1.3371,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-get-p16",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "get",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2444324.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:05:11Z"
+     },
+     {
+      "ops": 2489091.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:06:08Z"
+     },
+     {
+      "ops": 2464579.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:06:27Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2464579.2,
+    "cv": 0.0074,
+    "range": [
+     2444324.8,
+     2489091.2
+    ],
+    "p50_ms": 1.635,
+    "p99_ms": 1.923,
+    "p999_ms": 2.703,
+    "max_ms": 16.194
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3592308.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:05:30Z"
+     },
+     {
+      "ops": 3544689.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:05:49Z"
+     },
+     {
+      "ops": 3610460.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:06:46Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3592308.8,
+    "cv": 0.0077,
+    "range": [
+     3544689.6,
+     3610460.8
+    ],
+    "p50_ms": 1.119,
+    "p99_ms": 1.331,
+    "p999_ms": 2.013,
+    "max_ms": 13.376
+   },
+   "compare": {
+    "ratio": 1.4576,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-set-p1",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "set",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 281106.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:07:05Z"
+     },
+     {
+      "ops": 285358.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:08:04Z"
+     },
+     {
+      "ops": 288126.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:08:24Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 285358.3,
+    "cv": 0.0101,
+    "range": [
+     281106.2,
+     288126.2
+    ],
+    "p50_ms": 3.983,
+    "p99_ms": 4.519,
+    "p999_ms": 5.119,
+    "max_ms": 19.884
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 389829.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:07:25Z"
+     },
+     {
+      "ops": 387525.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:07:45Z"
+     },
+     {
+      "ops": 398370.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:08:44Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 389829.2,
+    "cv": 0.0119,
+    "range": [
+     387525.9,
+     398370.4
+    ],
+    "p50_ms": 2.831,
+    "p99_ms": 4.063,
+    "p999_ms": 4.311,
+    "max_ms": 21.399
+   },
+   "compare": {
+    "ratio": 1.3661,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-set-p16",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "set",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1650609.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:09:04Z"
+     },
+     {
+      "ops": 1618366.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:10:03Z"
+     },
+     {
+      "ops": 1646934.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:10:22Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1646934.4,
+    "cv": 0.0088,
+    "range": [
+     1618366.4,
+     1650609.6
+    ],
+    "p50_ms": 2.463,
+    "p99_ms": 3.059,
+    "p999_ms": 3.767,
+    "max_ms": 15.322
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1724182.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:09:24Z"
+     },
+     {
+      "ops": 1728800.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:09:43Z"
+     },
+     {
+      "ops": 1732822.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:10:42Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1728800.0,
+    "cv": 0.002,
+    "range": [
+     1724182.4,
+     1732822.4
+    ],
+    "p50_ms": 2.195,
+    "p99_ms": 3.887,
+    "p999_ms": 4.379,
+    "max_ms": 22.094
+   },
+   "compare": {
+    "ratio": 1.0497,
+    "verdict": "tie",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r80w20-p1",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "r80w20",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 321766.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:11:02Z"
+     },
+     {
+      "ops": 316581.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:12:01Z"
+     },
+     {
+      "ops": 321283.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:12:21Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 321283.6,
+    "cv": 0.0073,
+    "range": [
+     316581.4,
+     321766.8
+    ],
+    "p50_ms": 3.551,
+    "p99_ms": 3.867,
+    "p999_ms": 4.575,
+    "max_ms": 17.734
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 432488.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:11:22Z"
+     },
+     {
+      "ops": 432535.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:11:41Z"
+     },
+     {
+      "ops": 430054.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:12:41Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 432488.8,
+    "cv": 0.0027,
+    "range": [
+     430054.9,
+     432535.3
+    ],
+    "p50_ms": 2.623,
+    "p99_ms": 3.587,
+    "p999_ms": 3.827,
+    "max_ms": 17.691
+   },
+   "compare": {
+    "ratio": 1.3461,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r80w20-p16",
+   "cores": 2,
+   "instance": "c8gn.large",
+   "layout": "main+irq, io+irq+aux",
+   "io_threads": 2,
+   "workload": "r80w20",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2316688.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:13:01Z"
+     },
+     {
+      "ops": 2291041.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:13:59Z"
+     },
+     {
+      "ops": 2269665.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:14:18Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2291041.6,
+    "cv": 0.0084,
+    "range": [
+     2269665.6,
+     2316688.0
+    ],
+    "p50_ms": 1.767,
+    "p99_ms": 2.131,
+    "p999_ms": 2.859,
+    "max_ms": 12.236
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 2123380.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:13:20Z"
+     },
+     {
+      "ops": 2128900.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:13:39Z"
+     },
+     {
+      "ops": 2124996.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:14:37Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2124996.8,
+    "cv": 0.0011,
+    "range": [
+     2123380.8,
+     2128900.8
+    ],
+    "p50_ms": 1.779,
+    "p99_ms": 3.155,
+    "p999_ms": 3.579,
+    "max_ms": 20.038
+   },
+   "compare": {
+    "ratio": 0.9275,
+    "verdict": "unstable higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-get-p1",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "get",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 383094.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:17:16Z"
+     },
+     {
+      "ops": 383451.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:18:18Z"
+     },
+     {
+      "ops": 378378.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:18:38Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 383094.5,
+    "cv": 0.0061,
+    "range": [
+     378378.1,
+     383451.0
+    ],
+    "p50_ms": 3.015,
+    "p99_ms": 3.179,
+    "p999_ms": 3.267,
+    "max_ms": 4.263
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 622875.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:17:38Z"
+     },
+     {
+      "ops": 612076.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:17:58Z"
+     },
+     {
+      "ops": 616864.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:18:59Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 616864.4,
+    "cv": 0.0072,
+    "range": [
+     612076.8,
+     622875.1
+    ],
+    "p50_ms": 1.827,
+    "p99_ms": 2.1149999999999998,
+    "p999_ms": 2.187,
+    "max_ms": 2.991
+   },
+   "compare": {
+    "ratio": 1.6102,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-get-p16",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "get",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 3006041.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:19:18Z"
+     },
+     {
+      "ops": 3006318.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:20:16Z"
+     },
+     {
+      "ops": 3000043.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:20:35Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3006041.6,
+    "cv": 0.001,
+    "range": [
+     3000043.2,
+     3006318.4
+    ],
+    "p50_ms": 1.355,
+    "p99_ms": 1.461,
+    "p999_ms": 1.591,
+    "max_ms": 2.013
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 4374278.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:19:37Z"
+     },
+     {
+      "ops": 4183148.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:19:57Z"
+     },
+     {
+      "ops": 4315550.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:20:55Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 4315550.4,
+    "cv": 0.0186,
+    "range": [
+     4183148.8,
+     4374278.4
+    ],
+    "p50_ms": 0.9470000000000001,
+    "p99_ms": 1.107,
+    "p999_ms": 1.1589999999999998,
+    "max_ms": 2.241
+   },
+   "compare": {
+    "ratio": 1.4356,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-set-p1",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "set",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 328962.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:21:14Z"
+     },
+     {
+      "ops": 332878.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:22:15Z"
+     },
+     {
+      "ops": 330551.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:22:35Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 330551.9,
+    "cv": 0.0049,
+    "range": [
+     328962.4,
+     332878.3
+    ],
+    "p50_ms": 3.471,
+    "p99_ms": 3.6470000000000002,
+    "p999_ms": 3.763,
+    "max_ms": 4.774
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 550972.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:21:34Z"
+     },
+     {
+      "ops": 543524.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:21:55Z"
+     },
+     {
+      "ops": 540036.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:22:56Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 543524.4,
+    "cv": 0.0084,
+    "range": [
+     540036.5,
+     550972.6
+    ],
+    "p50_ms": 2.279,
+    "p99_ms": 2.711,
+    "p999_ms": 2.943,
+    "max_ms": 11.99
+   },
+   "compare": {
+    "ratio": 1.6443,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-set-p16",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "set",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1732969.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:23:16Z"
+     },
+     {
+      "ops": 1731856.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:24:16Z"
+     },
+     {
+      "ops": 1734913.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:24:35Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1732969.6,
+    "cv": 0.0007,
+    "range": [
+     1731856.0,
+     1734913.6
+    ],
+    "p50_ms": 2.367,
+    "p99_ms": 2.427,
+    "p999_ms": 2.451,
+    "max_ms": 2.776
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1896987.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:23:36Z"
+     },
+     {
+      "ops": 1870449.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:23:56Z"
+     },
+     {
+      "ops": 1756320.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:24:54Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1870449.6,
+    "cv": 0.0331,
+    "range": [
+     1756320.0,
+     1896987.2
+    ],
+    "p50_ms": 1.925,
+    "p99_ms": 3.455,
+    "p999_ms": 3.7350000000000003,
+    "max_ms": 4.632
+   },
+   "compare": {
+    "ratio": 1.0793,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r80w20-p1",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "r80w20",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 372712.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:25:15Z"
+     },
+     {
+      "ops": 367968.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:26:16Z"
+     },
+     {
+      "ops": 365605.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:26:36Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 367968.7,
+    "cv": 0.008,
+    "range": [
+     365605.8,
+     372712.5
+    ],
+    "p50_ms": 3.135,
+    "p99_ms": 3.295,
+    "p999_ms": 3.407,
+    "max_ms": 4.323
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 603447.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:25:35Z"
+     },
+     {
+      "ops": 592764.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:25:55Z"
+     },
+     {
+      "ops": 595661.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:26:56Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 595661.3,
+    "cv": 0.0076,
+    "range": [
+     592764.0,
+     603447.5
+    ],
+    "p50_ms": 1.885,
+    "p99_ms": 2.499,
+    "p999_ms": 2.623,
+    "max_ms": 11.795
+   },
+   "compare": {
+    "ratio": 1.6188,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r80w20-p16",
+   "cores": 4,
+   "instance": "c8gn.xlarge",
+   "layout": "irq, main, io, aux",
+   "io_threads": 2,
+   "workload": "r80w20",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2681696.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:27:17Z"
+     },
+     {
+      "ops": 2671955.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:28:16Z"
+     },
+     {
+      "ops": 2672870.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:28:35Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2672870.4,
+    "cv": 0.0016,
+    "range": [
+     2671955.2,
+     2681696.0
+    ],
+    "p50_ms": 1.527,
+    "p99_ms": 1.631,
+    "p999_ms": 1.7289999999999999,
+    "max_ms": 2.124
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 2385774.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:27:36Z"
+     },
+     {
+      "ops": 2368688.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:27:55Z"
+     },
+     {
+      "ops": 2351538.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:28:54Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2368688.0,
+    "cv": 0.0059,
+    "range": [
+     2351538.9,
+     2385774.4
+    ],
+    "p50_ms": 1.413,
+    "p99_ms": 2.507,
+    "p999_ms": 2.879,
+    "max_ms": 3.392
+   },
+   "compare": {
+    "ratio": 0.8862,
+    "verdict": "unstable higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-get-p1",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "get",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 945765.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:31:34Z"
+     },
+     {
+      "ops": 949739.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:32:34Z"
+     },
+     {
+      "ops": 966019.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:32:53Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 949739.1,
+    "cv": 0.0092,
+    "range": [
+     945765.6,
+     966019.6
+    ],
+    "p50_ms": 1.207,
+    "p99_ms": 1.327,
+    "p999_ms": 1.435,
+    "max_ms": 2.497
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1112703.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:31:55Z"
+     },
+     {
+      "ops": 1119066.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:32:15Z"
+     },
+     {
+      "ops": 1119943.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:33:13Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1119066.2,
+    "cv": 0.0029,
+    "range": [
+     1112703.8,
+     1119943.9
+    ],
+    "p50_ms": 1.015,
+    "p99_ms": 1.235,
+    "p999_ms": 1.331,
+    "max_ms": 1.977
+   },
+   "compare": {
+    "ratio": 1.1783,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-get-p16",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "get",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 3129971.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:33:32Z"
+     },
+     {
+      "ops": 3125425.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:34:31Z"
+     },
+     {
+      "ops": 3143710.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:34:50Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3129971.2,
+    "cv": 0.0025,
+    "range": [
+     3125425.6,
+     3143710.4
+    ],
+    "p50_ms": 1.293,
+    "p99_ms": 1.473,
+    "p999_ms": 1.577,
+    "max_ms": 2.421
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 8175044.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:33:52Z"
+     },
+     {
+      "ops": 8191459.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:34:11Z"
+     },
+     {
+      "ops": 8206457.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:35:09Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 8191459.2,
+    "cv": 0.0016,
+    "range": [
+     8175044.8,
+     8206457.6
+    ],
+    "p50_ms": 0.495,
+    "p99_ms": 0.647,
+    "p999_ms": 0.7350000000000001,
+    "max_ms": 1.074
+   },
+   "compare": {
+    "ratio": 2.6171,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-set-p1",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "set",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 889444.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:35:29Z"
+     },
+     {
+      "ops": 886941.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:36:29Z"
+     },
+     {
+      "ops": 877509.5,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:36:50Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 886941.7,
+    "cv": 0.0058,
+    "range": [
+     877509.5,
+     889444.3
+    ],
+    "p50_ms": 1.295,
+    "p99_ms": 1.433,
+    "p999_ms": 1.5150000000000001,
+    "max_ms": 2.222
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 997932.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:35:49Z"
+     },
+     {
+      "ops": 993882.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:36:09Z"
+     },
+     {
+      "ops": 989537.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:37:09Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 993882.8,
+    "cv": 0.0034,
+    "range": [
+     989537.7,
+     997932.2
+    ],
+    "p50_ms": 1.039,
+    "p99_ms": 1.609,
+    "p999_ms": 1.799,
+    "max_ms": 2.666
+   },
+   "compare": {
+    "ratio": 1.1206,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-set-p16",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "set",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2425585.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:37:28Z"
+     },
+     {
+      "ops": 2439166.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:38:27Z"
+     },
+     {
+      "ops": 2441769.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:38:46Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2439166.4,
+    "cv": 0.0029,
+    "range": [
+     2425585.6,
+     2441769.6
+    ],
+    "p50_ms": 1.675,
+    "p99_ms": 1.817,
+    "p999_ms": 1.943,
+    "max_ms": 2.319
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3722684.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:37:48Z"
+     },
+     {
+      "ops": 3713091.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:38:07Z"
+     },
+     {
+      "ops": 3719628.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:39:05Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3719628.8,
+    "cv": 0.0011,
+    "range": [
+     3713091.2,
+     3722684.8
+    ],
+    "p50_ms": 1.279,
+    "p99_ms": 1.425,
+    "p999_ms": 1.889,
+    "max_ms": 2.337
+   },
+   "compare": {
+    "ratio": 1.525,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r80w20-p1",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "r80w20",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 950886.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:39:25Z"
+     },
+     {
+      "ops": 944033.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:40:24Z"
+     },
+     {
+      "ops": 928284.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:40:44Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 944033.4,
+    "cv": 0.0101,
+    "range": [
+     928284.8,
+     950886.7
+    ],
+    "p50_ms": 1.219,
+    "p99_ms": 1.355,
+    "p999_ms": 1.463,
+    "max_ms": 2.188
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1073444.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:39:45Z"
+     },
+     {
+      "ops": 1076177.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:40:05Z"
+     },
+     {
+      "ops": 1082292.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:41:05Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1076177.9,
+    "cv": 0.0034,
+    "range": [
+     1073444.1,
+     1082292.2
+    ],
+    "p50_ms": 1.055,
+    "p99_ms": 1.381,
+    "p999_ms": 1.779,
+    "max_ms": 11.184
+   },
+   "compare": {
+    "ratio": 1.14,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r80w20-p16",
+   "cores": 8,
+   "instance": "c8gn.2xlarge",
+   "layout": "3x irq, main, 3x io, aux",
+   "io_threads": 4,
+   "workload": "r80w20",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2828073.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:41:24Z"
+     },
+     {
+      "ops": 2854177.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:42:22Z"
+     },
+     {
+      "ops": 2847160.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:42:42Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2847160.0,
+    "cv": 0.0039,
+    "range": [
+     2828073.6,
+     2854177.6
+    ],
+    "p50_ms": 1.431,
+    "p99_ms": 1.623,
+    "p999_ms": 1.7249999999999999,
+    "max_ms": 1.996
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 4520771.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:41:43Z"
+     },
+     {
+      "ops": 4612939.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:42:03Z"
+     },
+     {
+      "ops": 4556430.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:11:06Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 4556430.4,
+    "cv": 0.0083,
+    "range": [
+     4520771.2,
+     4612939.2
+    ],
+    "p50_ms": 0.985,
+    "p99_ms": 1.115,
+    "p999_ms": 1.437,
+    "max_ms": 1.889
+   },
+   "compare": {
+    "ratio": 1.6003,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-get-p1",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "get",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1757860.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:13:38Z"
+     },
+     {
+      "ops": 1763352.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:14:30Z"
+     },
+     {
+      "ops": 1764864.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:14:47Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1763352.7,
+    "cv": 0.0017,
+    "range": [
+     1757860.4,
+     1764864.6
+    ],
+    "p50_ms": 0.635,
+    "p99_ms": 0.829,
+    "p999_ms": 0.891,
+    "max_ms": 10.582
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1968696.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:13:55Z"
+     },
+     {
+      "ops": 1980361.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:14:13Z"
+     },
+     {
+      "ops": 1965016.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:15:04Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1968696.0,
+    "cv": 0.0033,
+    "range": [
+     1965016.4,
+     1980361.1
+    ],
+    "p50_ms": 0.615,
+    "p99_ms": 0.767,
+    "p999_ms": 1.051,
+    "max_ms": 1.679
+   },
+   "compare": {
+    "ratio": 1.1165,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-get-p16",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "get",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2970427.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:15:21Z"
+     },
+     {
+      "ops": 2978105.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:16:12Z"
+     },
+     {
+      "ops": 2964550.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:16:29Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2970427.2,
+    "cv": 0.0019,
+    "range": [
+     2964550.4,
+     2978105.6
+    ],
+    "p50_ms": 1.231,
+    "p99_ms": 3.759,
+    "p999_ms": 3.895,
+    "max_ms": 4.287
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 17142777.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:15:38Z"
+     },
+     {
+      "ops": 17111468.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:15:55Z"
+     },
+     {
+      "ops": 17034632.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:16:46Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 17111468.8,
+    "cv": 0.0027,
+    "range": [
+     17034632.0,
+     17142777.6
+    ],
+    "p50_ms": 0.237,
+    "p99_ms": 0.309,
+    "p999_ms": 0.587,
+    "max_ms": 1.319
+   },
+   "compare": {
+    "ratio": 5.7606,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-set-p1",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "set",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1809421.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:17:03Z"
+     },
+     {
+      "ops": 1780228.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:17:55Z"
+     },
+     {
+      "ops": 1774055.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:18:12Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1780228.1,
+    "cv": 0.0086,
+    "range": [
+     1774055.0,
+     1809421.2
+    ],
+    "p50_ms": 0.635,
+    "p99_ms": 0.863,
+    "p999_ms": 0.915,
+    "max_ms": 1.607
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1649812.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:17:20Z"
+     },
+     {
+      "ops": 1659125.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:17:38Z"
+     },
+     {
+      "ops": 1640234.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:18:30Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1649812.3,
+    "cv": 0.0047,
+    "range": [
+     1640234.1,
+     1659125.6
+    ],
+    "p50_ms": 0.727,
+    "p99_ms": 0.855,
+    "p999_ms": 1.255,
+    "max_ms": 1.793
+   },
+   "compare": {
+    "ratio": 0.9267,
+    "verdict": "unstable higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-set-p16",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "set",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2218598.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:18:47Z"
+     },
+     {
+      "ops": 2199897.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:19:38Z"
+     },
+     {
+      "ops": 2234846.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:19:56Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2218598.4,
+    "cv": 0.0064,
+    "range": [
+     2199897.6,
+     2234846.4
+    ],
+    "p50_ms": 1.679,
+    "p99_ms": 5.071,
+    "p999_ms": 5.263,
+    "max_ms": 5.876
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 7561679.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:19:04Z"
+     },
+     {
+      "ops": 7526190.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:19:21Z"
+     },
+     {
+      "ops": 7543610.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:20:13Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 7543610.8,
+    "cv": 0.0019,
+    "range": [
+     7526190.3,
+     7561679.7
+    ],
+    "p50_ms": 0.535,
+    "p99_ms": 0.8029999999999999,
+    "p999_ms": 1.159,
+    "max_ms": 2.184
+   },
+   "compare": {
+    "ratio": 3.4002,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r80w20-p1",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "r80w20",
+   "P": 1,
+   "conns": 1152,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1702962.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:20:31Z"
+     },
+     {
+      "ops": 1716399.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:21:24Z"
+     },
+     {
+      "ops": 1704079.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:21:41Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1704079.6,
+    "cv": 0.0036,
+    "range": [
+     1702962.0,
+     1716399.9
+    ],
+    "p50_ms": 0.667,
+    "p99_ms": 0.863,
+    "p999_ms": 0.923,
+    "max_ms": 3.589
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 1822436.9,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:20:48Z"
+     },
+     {
+      "ops": 1830719.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:21:06Z"
+     },
+     {
+      "ops": 1842987.1,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:21:58Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1830719.8,
+    "cv": 0.0046,
+    "range": [
+     1822436.9,
+     1842987.1
+    ],
+    "p50_ms": 0.639,
+    "p99_ms": 0.9969999999999999,
+    "p999_ms": 1.123,
+    "max_ms": 1.857
+   },
+   "compare": {
+    "ratio": 1.0743,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r80w20-p16",
+   "cores": 16,
+   "instance": "c8gn.4xlarge",
+   "layout": "5x irq, main, 9x io, aux",
+   "io_threads": 10,
+   "workload": "r80w20",
+   "P": 16,
+   "conns": 256,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2675310.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:22:15Z"
+     },
+     {
+      "ops": 2676852.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:23:08Z"
+     },
+     {
+      "ops": 2655926.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:23:25Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2675310.4,
+    "cv": 0.0036,
+    "range": [
+     2655926.4,
+     2676852.8
+    ],
+    "p50_ms": 1.391,
+    "p99_ms": 4.195,
+    "p999_ms": 4.383,
+    "max_ms": 4.891
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 9257297.4,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:22:33Z"
+     },
+     {
+      "ops": 9275478.3,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:22:51Z"
+     },
+     {
+      "ops": 9227847.7,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:23:42Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 9257297.4,
+    "cv": 0.0021,
+    "range": [
+     9227847.7,
+     9275478.3
+    ],
+    "p50_ms": 0.439,
+    "p99_ms": 0.539,
+    "p999_ms": 0.985,
+    "max_ms": 1.775
+   },
+   "compare": {
+    "ratio": 3.4603,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  }
+ ],
+ "shown_builds": [
+  "unstable",
+  "frontier"
+ ],
+ "sustain": {
+  "2c-get-p16": {
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2503041.6,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:14:56Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 2503041.6,
+    "cv": null,
+    "range": [
+     2503041.6,
+     2503041.6
+    ],
+    "p50_ms": 1.619,
+    "p99_ms": 1.839,
+    "p999_ms": 2.659,
+    "max_ms": 12.002,
+    "window_s": 60
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3660716.8,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:16:06Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 3660716.8,
+    "cv": null,
+    "range": [
+     3660716.8,
+     3660716.8
+    ],
+    "p50_ms": 1.119,
+    "p99_ms": 1.317,
+    "p999_ms": 1.891,
+    "max_ms": 17.217,
+    "window_s": 60
+   }
+  },
+  "4c-get-p16": {
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2954215.2,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:29:14Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 2954215.2,
+    "cv": null,
+    "range": [
+     2954215.2,
+     2954215.2
+    ],
+    "p50_ms": 1.363,
+    "p99_ms": 1.497,
+    "p999_ms": 1.5550000000000002,
+    "max_ms": 3.616,
+    "window_s": 60
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 4301096.266666667,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T22:30:23Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 4301096.266666667,
+    "cv": null,
+    "range": [
+     4301096.266666667,
+     4301096.266666667
+    ],
+    "p50_ms": 0.943,
+    "p99_ms": 1.035,
+    "p999_ms": 1.099,
+    "max_ms": 3.98,
+    "window_s": 60
+   }
+  },
+  "16c-get-p16": {
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2927056.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:23:59Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 2927056.0,
+    "cv": null,
+    "range": [
+     2927056.0,
+     2927056.0
+    ],
+    "p50_ms": 1.251,
+    "p99_ms": 3.807,
+    "p999_ms": 3.911,
+    "max_ms": 4.365,
+    "window_s": 60
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 17136666.933333334,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:25:06Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 17136666.933333334,
+    "cv": null,
+    "range": [
+     17136666.933333334,
+     17136666.933333334
+    ],
+    "p50_ms": 0.239,
+    "p99_ms": 0.33099999999999996,
+    "p999_ms": 0.593,
+    "max_ms": 0.964,
+    "window_s": 60
+   }
+  },
+  "8c-get-p16": {
+   "unstable": {
+    "reps": [
+     {
+      "ops": 3048609.3333333335,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:11:24Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 3048609.3333333335,
+    "cv": null,
+    "range": [
+     3048609.3333333335,
+     3048609.3333333335
+    ],
+    "p50_ms": 1.345,
+    "p99_ms": 1.5450000000000002,
+    "p999_ms": 1.637,
+    "max_ms": 2.082,
+    "window_s": 60
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 8112994.133333334,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-17T23:12:31Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 8112994.133333334,
+    "cv": null,
+    "range": [
+     8112994.133333334,
+     8112994.133333334
+    ],
+    "p50_ms": 0.503,
+    "p99_ms": 0.659,
+    "p999_ms": 0.751,
+    "max_ms": 4.689,
+    "window_s": 60
+   }
+  }
+ },
+ "headline": "Builds: valkey-io unstable <code>0bc71f0</code> vs superset-frontier <code>429ca52</code>. Hosts: c8gn.large to c8gn.4xlarge servers, c8g.metal-24xl clients, us-east-2c (the archived 2026-11-04 runs were in us-east-1). Method: both builds on the same hosts in one session, alternating per rep, server restarted per rep, 3 reps; each value is the median of the valid reps. A verdict needs 2+ valid reps per build: higher when medians differ by more than 5% and the rep ranges do not overlap, else tie. A cell without one is marked MISSING with its reason."
+}

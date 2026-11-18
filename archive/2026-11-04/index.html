@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ratatoskr</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg, #0f1115); color: var(--text, #d7dae0); }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 28px; margin: 0 0 32px; letter-spacing: -0.01em; }
+  h1 span { color: var(--muted, #7d8590); font-weight: 400; font-size: 18px; margin-left: 10px; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { border: 1px solid var(--border, #2a2f3a); border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; background: var(--card, #161a21); color: var(--card-fg, #d7dae0); }
+  li a { color: var(--accent, #7aa2f7); font-weight: 600; text-decoration: none; font-size: 16px; }
+  li a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div style="background:#fff3cd;color:#5c4400;border-bottom:1px solid #e0c060;padding:8px 14px;font:14px/1.4 system-ui,sans-serif">Archived: superseded by the 2026-11-18 refresh. <a href="../../" style="color:#2f5bd3">See the current view</a>.</div>
+<main>
+  <h1>ratatoskr <span>🐿️</span></h1>
+  <ul>
+    <li>
+      <a href="offload/">Valkey benchmarks</a>
+    </li>
+    <li>
+      <a href="offload/replica/">Valkey replica read capacity</a>
+    </li>
+    <li>
+      <a href="offload/perf/">Valkey superset vs upstream perf review</a>
+    </li>
+    <li>
+      <a href="offload/perf-927094894/">Valkey superset-new 927094894 perf review</a>
+    </li>
+    <li>
+      <a href="offload/perf-67805ac58/">Valkey superset-new-prefetch 67805ac58 perf review</a>
+    </li>
+    <li>
+      <a href="offload/perf-r7g-67805ac58/">Valkey superset-new-prefetch vs upstream on r7g.large / r7g.xlarge</a>
+    </li>
+    <li>
+      <a href="offload/perf-r7g-xl-small-core/">Valkey xl-small-core on r7g.large / r7g.xlarge</a>
+    </li>
+    <li>
+      <a href="offload/perf-dragonfly-1026/">Valkey superset vs Dragonfly v2.0.2 vs upstream, 2-16 cores</a>
+    </li>
+    <li>
+      <a href="offload/replica-write-throughput/">Valkey replica write throughput over one replication link: upstream vs superset-frontier</a>
+    </li>
+    <li>
+      <a href="offload/perf-elastic-1027/">Valkey superset elastic core scaling (2-5 cores up and down) and keyspace-shard-bits</a>
+    </li>
+    <li>
+      <a href="offload/write-scaling-1102/">Valkey superset-frontier 29152861a write scaling at 1-16 cores vs upstream: current state and open options</a>
+    </li>
+    <li>
+      <a href="offload/dragonfly-official-repro/">Dragonfly's official benchmark: Dragonfly v1.15.0 and Valkey superset 4056df343 on the same c6gn and c7gn hosts, absolute ops/s side by side</a>
+    </li>
+  </ul>
+</main>
+</body>
+</html>

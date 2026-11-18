@@ -1,0 +1,23 @@
+## 4 cores, calibration cal-20261118T002940Z
+targets: X 892k writes/s, Y 938k reads/s, reps more than 7% off are invalid
+
+| build | X writes/s | Y reads/s | replica reads/s in sync | more offered reads |
+|---|---:|---:|---|---|
+| unstable | 890k | 939k | 1.94M at 800 readers | in sync at every step; reads level off |
+| frontier | 865k | 956k | 7.80M at 800 readers | in sync at every step; reads level off |
+
+| build | readers | valid | writes/s | primary reads/s | replica reads/s | reader p99 | note |
+|---|---:|---:|---:|---:|---:|---:|---|
+| unstable 48/50 (P8/P8) | 0 | 3/3 | 888k | 941k |  |  |  |
+| unstable | 50 | 3/3 | 890k | 950k | 1.85M | 663 us |  |
+| unstable | 100 | 3/3 | 888k | 933k | 1.89M | 1122 us |  |
+| unstable | 200 | 3/3 | 890k | 937k | 1.92M | 1900 us |  |
+| unstable | 400 | 3/3 | 895k | 934k | 1.91M | 3620 us |  |
+| unstable | 800 | 3/3 | 886k | 948k | 1.94M | 6946 us |  |
+| frontier 10/8 (P8/P8) | 0 | 3/3 | 866k | 957k |  |  |  |
+| frontier | 50 | 3/3 | 867k | 954k | 6.30M | 222 us | RTT |
+| frontier | 100 | 3/3 | 860k | 954k | 6.56M | 434 us |  |
+| frontier | 200 | 3/3 | 865k | 963k | 7.03M | 712 us |  |
+| frontier | 400 | 3/3 | 865k | 946k | 7.74M | 1114 us |  |
+| frontier | 800 | 3/3 | 865k | 955k | 7.80M | 1859 us |  |
+

@@ -1,0 +1,25 @@
+## 8 cores, calibration cal-20261118T005318Z
+targets: X 987k writes/s, Y 527k reads/s, reps more than 7% off are invalid
+
+| build | X writes/s | Y reads/s | replica reads/s in sync | more offered reads |
+|---|---:|---:|---|---|
+| unstable | 990k | 528k | 1.67M at 800 readers | in sync at every step; reads level off |
+| frontier | 965k | 506k | at least 14.29M at 800 readers | in sync at every step; reads still rising, extend the sweep |
+
+| build | readers | valid | writes/s | primary reads/s | replica reads/s | reader p99 | note |
+|---|---:|---:|---:|---:|---:|---:|---|
+| unstable 96/200 (P8/P2) | 0 | 3/3 | 995k | 530k |  |  |  |
+| unstable | 50 | 3/3 | 995k | 529k | 1.59M | 811 us |  |
+| unstable | 100 | 3/3 | 989k | 529k | 1.64M | 1343 us |  |
+| unstable | 200 | 3/3 | 985k | 528k | 1.67M | 2293 us |  |
+| unstable | 400 | 3/3 | 991k | 528k | 1.66M | 4259 us |  |
+| unstable | 800 | 3/3 | 988k | 529k | 1.67M | 8126 us |  |
+| unstable | 1600 | 3/3 | 990k | 526k | 1.65M | 16056 us |  |
+| frontier 11/16 (P8/P2) | 0 | 1/3 | | | | | invalid: primary reads 489k/s, -7.1% off target 527k/s |
+| frontier | 50 | 3/3 | 965k | 510k | 8.24M | 151 us | RTT |
+| frontier | 100 | 2/3 | 954k | 511k | 11.41M | 226 us | RTT, 1/3 invalid: primary reads 469k/s, -11.0% off target 527k/s |
+| frontier | 200 | 3/3 | 968k | 501k | 11.70M | 423 us |  |
+| frontier | 400 | 2/3 | 974k | 499k | 12.69M | 702 us | 1/3 invalid: primary reads 464k/s, -11.8% off target 527k/s |
+| frontier | 800 | 3/3 | 962k | 510k | 14.29M | 1187 us |  |
+| frontier | 1600 | 1/3 | | | | | invalid: primary reads 485k/s, -7.9% off target 527k/s |
+

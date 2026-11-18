@@ -1,0 +1,3120 @@
+{
+ "view": "replica-capacity",
+ "status": "complete: 26 scenarios, 2 MISSING",
+ "generated": "2026-11-18",
+ "builds": {
+  "unstable": {
+   "label": "valkey-io unstable",
+   "repo": "https://github.com/valkey-io/valkey",
+   "branch": "unstable",
+   "sha": "0bc71f0ea535ab2d96bc1bb76b50612e3bb789e7",
+   "committed": "2026-11-17T19:21:33Z",
+   "config": "defaults; io-threads per layout"
+  },
+  "frontier": {
+   "label": "superset-frontier",
+   "repo": "https://github.com/xdk-amz/valkey",
+   "branch": "superset-frontier",
+   "sha": "429ca52c70318066cfb784641683e8da7f466220",
+   "committed": "2026-11-17T20:13:51Z",
+   "config": "io-threads per layout; flags as listed per view"
+  }
+ },
+ "harness": {
+  "offbench": "xdk-amz/offbench unstable dbf1421b8d03663d7442b3bddf784888819d8cd7",
+  "build": "GCC 11.5, -O3 -flto, jemalloc, identical flags for both builds"
+ },
+ "setup": {
+  "hosts": "5x c8g.metal-24xl in us-east-2c, one cluster placement group (ratatoskr-replica-2c): primary, replica, writer+primary-reader generator, replica-reader generator (a second one at 16 cores)",
+  "rtt_gate_ms": 0.15,
+  "keys": 100000,
+  "value_bytes": 64,
+  "window_s": 6,
+  "client": "cachecannon (offbench vendored), closed loop",
+  "pinning": "per-core-count layout from repl-calibrate; IRQs off server cores; pintune (irqbalance off, loopback RPS steered)",
+  "frontier_config": "replica-parallel-apply yes, io-threads-fast-path yes, io-threads-strict-offload yes, io-threads-parallel-writes yes (as on replica-write-throughput)",
+  "targets": "X writes/s and Y reads/s per core count from repl-calibrate, same for both builds",
+  "launch": "20261111T231304Z-replica-3268223: layout a, us-east-2c, cluster placement group ratatoskr-replica-2c",
+  "instances": "servers 2x c8g.metal-24xl (primary, replica); clients 3x c8g.metal-24xl (a 4th replica-reader generator at 16 cores)",
+  "caveat": "Re-measured 2026-11-17/18 in us-east-2c (same five hosts and placement group as the 11-12 run) on unstable 0bc71f0 vs frontier 429ca52; the 11-12 numbers (65c8ce668) are superseded.",
+  "run_window": "2026-11-11 23:33Z to 2026-11-12 01:42Z",
+  "builds_bytes": "same binaries on primary and replica: unstable sha256 30f0663741178cdc..., frontier 7c625ac7a69f2ed2..., GCC 11.5.0, plain make",
+  "latency_note": "Each build runs at its own calibrated writer and primary-reader connection counts (both builds deliver the same X writes/s and Y reads/s), so writer and primary-reader latency follow those counts; replica-reader latency is at matched replica reader connections.",
+  "extension": "8 and 16 cores: a 3200-reader step was added because frontier reads were still rising at 1600.",
+  "rtt_ms": "generator to primary 0.105, generator to replica 0.103, primary to replica 0.109 (median ping)"
+ },
+ "per_core": {
+  "2": {
+   "targets": {
+    "write_kcmd_s": 597.7046046527533,
+    "read_kcmd_s": 1326.012013808774
+   },
+   "hosts": {
+    "primary": "rr2-primary",
+    "replica": "rr2-replica",
+    "gen": "rr2-gen",
+    "rgen": "rr2-rgen"
+   },
+   "shapes": {
+    "unstable": {
+     "w": 22,
+     "wp": 4,
+     "p": 14,
+     "pp": 16
+    },
+    "frontier": {
+     "w": 20,
+     "wp": 4,
+     "p": 9,
+     "pp": 16
+    }
+   },
+   "capacity": {
+    "unstable": {
+     "x_writes": "589k",
+     "y_reads": "1.32M",
+     "capacity": "2.50M at 800 readers",
+     "more_reads": "in sync at every step; reads level off"
+    },
+    "frontier": {
+     "x_writes": "602k",
+     "y_reads": "1.31M",
+     "capacity": "4.05M at 800 readers",
+     "more_reads": "in sync at every step; reads level off"
+    }
+   },
+   "report": "rr-2c-capacity.txt"
+  },
+  "4": {
+   "targets": {
+    "write_kcmd_s": 891.7614081685036,
+    "read_kcmd_s": 937.8950041728554
+   },
+   "hosts": {
+    "primary": "rr2-primary",
+    "replica": "rr2-replica",
+    "gen": "rr2-gen",
+    "rgen": "rr2-rgen"
+   },
+   "shapes": {
+    "unstable": {
+     "w": 48,
+     "wp": 8,
+     "p": 50,
+     "pp": 8
+    },
+    "frontier": {
+     "w": 10,
+     "wp": 8,
+     "p": 8,
+     "pp": 8
+    }
+   },
+   "capacity": {
+    "unstable": {
+     "x_writes": "890k",
+     "y_reads": "939k",
+     "capacity": "1.94M at 800 readers",
+     "more_reads": "in sync at every step; reads level off"
+    },
+    "frontier": {
+     "x_writes": "865k",
+     "y_reads": "956k",
+     "capacity": "7.80M at 800 readers",
+     "more_reads": "in sync at every step; reads level off"
+    }
+   },
+   "report": "rr-4c-capacity.txt"
+  },
+  "8": {
+   "targets": {
+    "write_kcmd_s": 987.4330106957076,
+    "read_kcmd_s": 526.6954015433897
+   },
+   "hosts": {
+    "primary": "rr2-primary",
+    "replica": "rr2-replica",
+    "gen": "rr2-gen",
+    "rgen": "rr2-rgen"
+   },
+   "shapes": {
+    "unstable": {
+     "w": 96,
+     "wp": 8,
+     "p": 200,
+     "pp": 2
+    },
+    "frontier": {
+     "w": 11,
+     "wp": 8,
+     "p": 16,
+     "pp": 2
+    }
+   },
+   "capacity": {
+    "unstable": {
+     "x_writes": "990k",
+     "y_reads": "528k",
+     "capacity": "1.67M at 800 readers",
+     "more_reads": "in sync at every step; reads level off"
+    },
+    "frontier": {
+     "x_writes": "965k",
+     "y_reads": "506k",
+     "capacity": "at least 14.29M at 800 readers",
+     "more_reads": "in sync at every step; reads still rising, extend the sweep"
+    }
+   },
+   "report": "rr-8c-capacity.txt"
+  },
+  "16": {
+   "targets": {
+    "write_kcmd_s": 1113.693509045353,
+    "read_kcmd_s": 297.3201282567434
+   },
+   "hosts": {
+    "primary": "rr2-primary",
+    "replica": "rr2-replica",
+    "gen": "rr2-gen",
+    "rgen": "rr2-rgen",
+    "rgen2": "rr2-rgen2"
+   },
+   "shapes": {
+    "unstable": {
+     "w": 192,
+     "wp": 8,
+     "p": 200,
+     "pp": 2
+    },
+    "frontier": {
+     "w": 12,
+     "wp": 8,
+     "p": 9,
+     "pp": 2
+    }
+   },
+   "capacity": {
+    "unstable": {
+     "x_writes": "1.11M",
+     "y_reads": "298k",
+     "capacity": "1.41M at 400 readers",
+     "more_reads": "falls out of sync between 400 and 800 readers; reads had levelled off"
+    },
+    "frontier": {
+     "x_writes": "1.08M",
+     "y_reads": "291k",
+     "capacity": "at least 23.73M at 1600 readers",
+     "more_reads": "in sync at every step; reads still rising, extend the sweep"
+    }
+   },
+   "report": "rr-16c-capacity.txt"
+  }
+ },
+ "latency_roles": [
+  "writer",
+  "primary_reader",
+  "replica_reader"
+ ],
+ "cells": [
+  {
+   "id": "2c-r0",
+   "cores": 2,
+   "replica_readers": 0,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:05:51Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:06:56Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:07:18Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.141,
+      "p99_ms": 0.193,
+      "p999_ms": 0.212,
+      "max_ms": 0.552
+     },
+     "primary_reader": {
+      "p50_ms": 0.159,
+      "p99_ms": 0.214,
+      "p999_ms": 0.234,
+      "max_ms": 0.557
+     },
+     "writes_s": 594483.2727794496,
+     "primary_reads_s": 1318522.7861579224
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:06:12Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:06:33Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:07:39Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.13,
+      "p99_ms": 0.175,
+      "p999_ms": 0.214,
+      "max_ms": 1.458
+     },
+     "primary_reader": {
+      "p50_ms": 0.109,
+      "p99_ms": 0.133,
+      "p999_ms": 0.161,
+      "max_ms": 0.514
+     },
+     "writes_s": 605958.92243308,
+     "primary_reads_s": 1301548.8835332447
+    }
+   },
+   "compare": null
+  },
+  {
+   "id": "2c-r50",
+   "cores": 2,
+   "replica_readers": 50,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2240707.9124960587,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:08:03Z"
+     },
+     {
+      "ops": 2366136.0184936477,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:09:13Z"
+     },
+     {
+      "ops": 2355024.2897864706,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:09:36Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2355024.2897864706,
+    "cv": 0.0244,
+    "range": [
+     2240707.9124960587,
+     2366136.0184936477
+    ],
+    "p50_ms": 0.327,
+    "p99_ms": 0.528,
+    "p999_ms": 0.618,
+    "max_ms": 0.79,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.141,
+      "p99_ms": 0.197,
+      "p999_ms": 0.223,
+      "max_ms": 0.827
+     },
+     "primary_reader": {
+      "p50_ms": 0.158,
+      "p99_ms": 0.208,
+      "p999_ms": 0.241,
+      "max_ms": 0.692
+     },
+     "writes_s": 587350.4516499001,
+     "primary_reads_s": 1322925.5565756166
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3789495.1579476004,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:08:26Z"
+     },
+     {
+      "ops": 3792893.4595760293,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:08:50Z"
+     },
+     {
+      "ops": 3807024.5811941847,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:10:00Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3792893.4595760293,
+    "cv": 0.002,
+    "range": [
+     3789495.1579476004,
+     3807024.5811941847
+    ],
+    "p50_ms": 0.194,
+    "p99_ms": 0.315,
+    "p999_ms": 0.358,
+    "max_ms": 0.638,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.132,
+      "p99_ms": 0.165,
+      "p999_ms": 0.246,
+      "max_ms": 0.778
+     },
+     "primary_reader": {
+      "p50_ms": 0.109,
+      "p99_ms": 0.134,
+      "p999_ms": 0.166,
+      "max_ms": 0.432
+     },
+     "writes_s": 601937.6796838685,
+     "primary_reads_s": 1309528.7119116061
+    }
+   },
+   "compare": {
+    "ratio": 1.6106,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r100",
+   "cores": 2,
+   "replica_readers": 100,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2442355.748193595,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:10:24Z"
+     },
+     {
+      "ops": 2423936.106378045,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:11:38Z"
+     },
+     {
+      "ops": 2458513.8059511017,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:12:02Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2442355.748193595,
+    "cv": 0.0058,
+    "range": [
+     2423936.106378045,
+     2458513.8059511017
+    ],
+    "p50_ms": 0.638,
+    "p99_ms": 0.921,
+    "p999_ms": 0.999,
+    "max_ms": 1.245,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.14,
+      "p99_ms": 0.205,
+      "p999_ms": 0.227,
+      "max_ms": 0.544
+     },
+     "primary_reader": {
+      "p50_ms": 0.166,
+      "p99_ms": 0.22,
+      "p999_ms": 0.266,
+      "max_ms": 0.532
+     },
+     "writes_s": 588801.4995686322,
+     "primary_reads_s": 1322628.3641898362
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3775734.5328044,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:10:49Z"
+     },
+     {
+      "ops": 3763221.316985646,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:11:13Z"
+     },
+     {
+      "ops": 3794961.882372425,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:12:27Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 3775734.5328044,
+    "cv": 0.0035,
+    "range": [
+     3763221.316985646,
+     3794961.882372425
+    ],
+    "p50_ms": 0.395,
+    "p99_ms": 0.671,
+    "p999_ms": 0.786,
+    "max_ms": 1.843,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.13,
+      "p99_ms": 0.164,
+      "p999_ms": 0.215,
+      "max_ms": 0.438
+     },
+     "primary_reader": {
+      "p50_ms": 0.108,
+      "p99_ms": 0.134,
+      "p999_ms": 0.166,
+      "max_ms": 0.456
+     },
+     "writes_s": 606693.3936400242,
+     "primary_reads_s": 1307993.2825571033
+    }
+   },
+   "compare": {
+    "ratio": 1.5459,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r200",
+   "cores": 2,
+   "replica_readers": 200,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2502475.5013981573,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:12:51Z"
+     },
+     {
+      "ops": 2477754.7454156736,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:14:04Z"
+     },
+     {
+      "ops": 2492678.6202627798,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:14:29Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2492678.6202627798,
+    "cv": 0.0041,
+    "range": [
+     2477754.7454156736,
+     2502475.5013981573
+    ],
+    "p50_ms": 1.277,
+    "p99_ms": 1.441,
+    "p999_ms": 1.589,
+    "max_ms": 1.9,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.142,
+      "p99_ms": 0.196,
+      "p999_ms": 0.272,
+      "max_ms": 0.509
+     },
+     "primary_reader": {
+      "p50_ms": 0.158,
+      "p99_ms": 0.208,
+      "p999_ms": 0.259,
+      "max_ms": 0.509
+     },
+     "writes_s": 587372.3905138227,
+     "primary_reads_s": 1313078.1972901856
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 3967120.4159462242,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:13:15Z"
+     },
+     {
+      "ops": 4017991.2685592882,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:13:40Z"
+     },
+     {
+      "ops": 4002462.0223901155,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:14:53Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 4002462.0223901155,
+    "cv": 0.0053,
+    "range": [
+     3967120.4159462242,
+     4017991.2685592882
+    ],
+    "p50_ms": 0.774,
+    "p99_ms": 1.089,
+    "p999_ms": 1.187,
+    "max_ms": 1.433,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.133,
+      "p99_ms": 0.163,
+      "p999_ms": 0.215,
+      "max_ms": 0.442
+     },
+     "primary_reader": {
+      "p50_ms": 0.108,
+      "p99_ms": 0.135,
+      "p999_ms": 0.168,
+      "max_ms": 0.397
+     },
+     "writes_s": 601773.2348291926,
+     "primary_reads_s": 1310561.5650921422
+    }
+   },
+   "compare": {
+    "ratio": 1.6057,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r400",
+   "cores": 2,
+   "replica_readers": 400,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2501769.101608229,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:15:18Z"
+     },
+     {
+      "ops": 2507131.6493460033,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:16:31Z"
+     },
+     {
+      "ops": 2500586.929709933,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:16:55Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2501769.101608229,
+    "cv": 0.0011,
+    "range": [
+     2500586.929709933,
+     2507131.6493460033
+    ],
+    "p50_ms": 2.555,
+    "p99_ms": 2.768,
+    "p999_ms": 2.916,
+    "max_ms": 3.276,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.141,
+      "p99_ms": 0.205,
+      "p999_ms": 0.252,
+      "max_ms": 0.397
+     },
+     "primary_reader": {
+      "p50_ms": 0.158,
+      "p99_ms": 0.211,
+      "p999_ms": 0.237,
+      "max_ms": 0.464
+     },
+     "writes_s": 589129.1216952348,
+     "primary_reads_s": 1315375.0493428276
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 4042523.8747773427,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:15:42Z"
+     },
+     {
+      "ops": 4037709.6299018776,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:16:06Z"
+     },
+     {
+      "ops": 4021408.0335038174,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:17:20Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 4037709.6299018776,
+    "cv": 0.0022,
+    "range": [
+     4021408.0335038174,
+     4042523.8747773427
+    ],
+    "p50_ms": 1.572,
+    "p99_ms": 1.851,
+    "p999_ms": 1.982,
+    "max_ms": 2.408,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.132,
+      "p99_ms": 0.157,
+      "p999_ms": 0.211,
+      "max_ms": 0.532
+     },
+     "primary_reader": {
+      "p50_ms": 0.109,
+      "p99_ms": 0.133,
+      "p999_ms": 0.161,
+      "max_ms": 0.499
+     },
+     "writes_s": 602227.1670072419,
+     "primary_reads_s": 1316364.9438137135
+    }
+   },
+   "compare": {
+    "ratio": 1.6139,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "2c-r800",
+   "cores": 2,
+   "replica_readers": 800,
+   "reader_pipeline": 16,
+   "write_pipeline": 4,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 2525043.77631574,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:17:44Z"
+     },
+     {
+      "ops": 2484521.7352569913,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:18:58Z"
+     },
+     {
+      "ops": 2504544.128398032,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:19:23Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 2504544.128398032,
+    "cv": 0.0066,
+    "range": [
+     2484521.7352569913,
+     2525043.77631574
+    ],
+    "p50_ms": 5.111,
+    "p99_ms": 5.373,
+    "p999_ms": 5.636,
+    "max_ms": 6.094,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.141,
+      "p99_ms": 0.197,
+      "p999_ms": 0.221,
+      "max_ms": 0.454
+     },
+     "primary_reader": {
+      "p50_ms": 0.159,
+      "p99_ms": 0.212,
+      "p999_ms": 0.237,
+      "max_ms": 0.464
+     },
+     "writes_s": 590343.7011011955,
+     "primary_reads_s": 1319778.725445592
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 4049677.4974169713,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:18:08Z"
+     },
+     {
+      "ops": 4071289.222986103,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:18:33Z"
+     },
+     {
+      "ops": 4041596.572145242,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:19:48Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 4049677.4974169713,
+    "cv": 0.0031,
+    "range": [
+     4041596.572145242,
+     4071289.222986103
+    ],
+    "p50_ms": 3.145,
+    "p99_ms": 3.424,
+    "p999_ms": 3.62,
+    "max_ms": 4.292,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.132,
+      "p99_ms": 0.172,
+      "p999_ms": 0.237,
+      "max_ms": 0.589
+     },
+     "primary_reader": {
+      "p50_ms": 0.109,
+      "p99_ms": 0.134,
+      "p999_ms": 0.166,
+      "max_ms": 0.618
+     },
+     "writes_s": 598806.0699160569,
+     "primary_reads_s": 1307313.0470010843
+    }
+   },
+   "compare": {
+    "ratio": 1.6169,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r0",
+   "cores": 4,
+   "replica_readers": 0,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:39:16Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:40:20Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:40:43Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.409,
+      "p99_ms": 0.659,
+      "p999_ms": 0.729,
+      "max_ms": 0.933
+     },
+     "primary_reader": {
+      "p50_ms": 0.405,
+      "p99_ms": 0.638,
+      "p999_ms": 0.724,
+      "max_ms": 0.921
+     },
+     "writes_s": 887963.5466143446,
+     "primary_reads_s": 940705.785769142
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:39:36Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:39:57Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:41:03Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.108,
+      "p999_ms": 0.158,
+      "max_ms": 0.282
+     },
+     "primary_reader": {
+      "p50_ms": 0.061,
+      "p99_ms": 0.09,
+      "p999_ms": 0.137,
+      "max_ms": 0.249
+     },
+     "writes_s": 866363.0844048441,
+     "primary_reads_s": 957042.5658198933
+    }
+   },
+   "compare": null
+  },
+  {
+   "id": "4c-r50",
+   "cores": 4,
+   "replica_readers": 50,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1847626.2979506832,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:41:28Z"
+     },
+     {
+      "ops": 1836819.2502699948,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:42:38Z"
+     },
+     {
+      "ops": 1860218.7515463938,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:43:02Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1847626.2979506832,
+    "cv": 0.0052,
+    "range": [
+     1836819.2502699948,
+     1860218.7515463938
+    ],
+    "p50_ms": 0.405,
+    "p99_ms": 0.663,
+    "p999_ms": 0.819,
+    "max_ms": 1.044,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.405,
+      "p99_ms": 0.663,
+      "p999_ms": 0.786,
+      "max_ms": 0.995
+     },
+     "primary_reader": {
+      "p50_ms": 0.401,
+      "p99_ms": 0.655,
+      "p999_ms": 0.782,
+      "max_ms": 1.122
+     },
+     "writes_s": 889726.6967052282,
+     "primary_reads_s": 950011.9090255672
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 6593579.98584352,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:41:50Z"
+     },
+     {
+      "ops": 6239244.045708704,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:42:13Z"
+     },
+     {
+      "ops": 6298875.056998523,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:43:25Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 6298875.056998523,
+    "cv": 0.0243,
+    "range": [
+     6239244.045708704,
+     6593579.98584352
+    ],
+    "p50_ms": 0.12,
+    "p99_ms": 0.222,
+    "p999_ms": 0.266,
+    "max_ms": 0.454,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.11,
+      "p999_ms": 0.159,
+      "max_ms": 0.258
+     },
+     "primary_reader": {
+      "p50_ms": 0.061,
+      "p99_ms": 0.091,
+      "p999_ms": 0.137,
+      "max_ms": 0.252
+     },
+     "writes_s": 867115.3906834372,
+     "primary_reads_s": 954304.3691586169
+    }
+   },
+   "compare": {
+    "ratio": 3.4092,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r100",
+   "cores": 4,
+   "replica_readers": 100,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1871463.7350614737,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:43:50Z"
+     },
+     {
+      "ops": 1891817.5609749742,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:45:02Z"
+     },
+     {
+      "ops": 1896913.8450975642,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:45:26Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1891817.5609749742,
+    "cv": 0.0058,
+    "range": [
+     1871463.7350614737,
+     1896913.8450975642
+    ],
+    "p50_ms": 0.831,
+    "p99_ms": 1.122,
+    "p999_ms": 1.261,
+    "max_ms": 1.605,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.407,
+      "p99_ms": 0.663,
+      "p999_ms": 0.774,
+      "max_ms": 1.019
+     },
+     "primary_reader": {
+      "p50_ms": 0.404,
+      "p99_ms": 0.665,
+      "p999_ms": 0.786,
+      "max_ms": 0.946
+     },
+     "writes_s": 888247.3945818247,
+     "primary_reads_s": 933257.6400471532
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 6564973.703324285,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:44:13Z"
+     },
+     {
+      "ops": 6643771.098477637,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:44:37Z"
+     },
+     {
+      "ops": 6414033.2909208825,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:45:50Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 6564973.703324285,
+    "cv": 0.0146,
+    "range": [
+     6414033.2909208825,
+     6643771.098477637
+    ],
+    "p50_ms": 0.23,
+    "p99_ms": 0.434,
+    "p999_ms": 0.483,
+    "max_ms": 0.86,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.135,
+      "p999_ms": 0.162,
+      "max_ms": 0.442
+     },
+     "primary_reader": {
+      "p50_ms": 0.061,
+      "p99_ms": 0.09,
+      "p999_ms": 0.14,
+      "max_ms": 0.395
+     },
+     "writes_s": 859895.3279747047,
+     "primary_reads_s": 954456.0474036521
+    }
+   },
+   "compare": {
+    "ratio": 3.4702,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r200",
+   "cores": 4,
+   "replica_readers": 200,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1924706.6068653509,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:46:15Z"
+     },
+     {
+      "ops": 1912078.5243503726,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:47:27Z"
+     },
+     {
+      "ops": 1925534.9702906555,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:47:51Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1924706.6068653509,
+    "cv": 0.0032,
+    "range": [
+     1912078.5243503726,
+     1925534.9702906555
+    ],
+    "p50_ms": 1.662,
+    "p99_ms": 1.9,
+    "p999_ms": 2.007,
+    "max_ms": 2.277,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.403,
+      "p99_ms": 0.671,
+      "p999_ms": 0.782,
+      "max_ms": 1.023
+     },
+     "primary_reader": {
+      "p50_ms": 0.407,
+      "p99_ms": 0.647,
+      "p999_ms": 0.753,
+      "max_ms": 0.966
+     },
+     "writes_s": 890393.4375358722,
+     "primary_reads_s": 936572.8624274672
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 7022850.489671889,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:46:38Z"
+     },
+     {
+      "ops": 7031773.356760213,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:47:02Z"
+     },
+     {
+      "ops": 7056883.7057564,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:48:15Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 7031773.356760213,
+    "cv": 0.002,
+    "range": [
+     7022850.489671889,
+     7056883.7057564
+    ],
+    "p50_ms": 0.415,
+    "p99_ms": 0.712,
+    "p999_ms": 0.798,
+    "max_ms": 1.105,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.111,
+      "p999_ms": 0.156,
+      "max_ms": 0.354
+     },
+     "primary_reader": {
+      "p50_ms": 0.061,
+      "p99_ms": 0.089,
+      "p999_ms": 0.137,
+      "max_ms": 0.598
+     },
+     "writes_s": 865205.119600918,
+     "primary_reads_s": 963388.4345375722
+    }
+   },
+   "compare": {
+    "ratio": 3.6534,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r400",
+   "cores": 4,
+   "replica_readers": 400,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1944272.3573973072,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:48:40Z"
+     },
+     {
+      "ops": 1907743.1452115788,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:49:52Z"
+     },
+     {
+      "ops": 1907540.9699274157,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:50:16Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1907743.1452115788,
+    "cv": 0.009,
+    "range": [
+     1907540.9699274157,
+     1944272.3573973072
+    ],
+    "p50_ms": 3.342,
+    "p99_ms": 3.62,
+    "p999_ms": 3.719,
+    "max_ms": 4.489,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.407,
+      "p99_ms": 0.651,
+      "p999_ms": 0.798,
+      "max_ms": 1.163
+     },
+     "primary_reader": {
+      "p50_ms": 0.41,
+      "p99_ms": 0.651,
+      "p999_ms": 0.7205,
+      "max_ms": 1.179
+     },
+     "writes_s": 895211.5488672678,
+     "primary_reads_s": 934161.8459454187
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 7742957.714489159,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:49:03Z"
+     },
+     {
+      "ops": 7697626.502416182,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:49:27Z"
+     },
+     {
+      "ops": 7751489.840972008,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:50:40Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 7742957.714489159,
+    "cv": 0.0031,
+    "range": [
+     7697626.502416182,
+     7751489.840972008
+    ],
+    "p50_ms": 0.798,
+    "p99_ms": 1.114,
+    "p999_ms": 1.196,
+    "max_ms": 1.941,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.134,
+      "p999_ms": 0.16,
+      "max_ms": 0.479
+     },
+     "primary_reader": {
+      "p50_ms": 0.062,
+      "p99_ms": 0.088,
+      "p999_ms": 0.136,
+      "max_ms": 0.268
+     },
+     "writes_s": 864650.3617791831,
+     "primary_reads_s": 946379.3031537482
+    }
+   },
+   "compare": {
+    "ratio": 4.0587,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "4c-r800",
+   "cores": 4,
+   "replica_readers": 800,
+   "reader_pipeline": 16,
+   "write_pipeline": 16,
+   "primary_reader_pipeline": 16,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1921111.341583274,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:51:06Z"
+     },
+     {
+      "ops": 1946656.2631262317,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:52:20Z"
+     },
+     {
+      "ops": 1937041.3799550594,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:52:45Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1937041.3799550594,
+    "cv": 0.0054,
+    "range": [
+     1921111.341583274,
+     1946656.2631262317
+    ],
+    "p50_ms": 6.619,
+    "p99_ms": 6.946,
+    "p999_ms": 7.11,
+    "max_ms": 8.978,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.405,
+      "p99_ms": 0.684,
+      "p999_ms": 0.811,
+      "max_ms": 1.163
+     },
+     "primary_reader": {
+      "p50_ms": 0.399,
+      "p99_ms": 0.671,
+      "p999_ms": 0.79,
+      "max_ms": 1.028
+     },
+     "writes_s": 885616.8232608518,
+     "primary_reads_s": 948229.2007897185
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 7751027.185157295,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:51:30Z"
+     },
+     {
+      "ops": 7796898.392130016,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:51:54Z"
+     },
+     {
+      "ops": 7801829.590420321,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T00:53:10Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 7796898.392130016,
+    "cv": 0.0029,
+    "range": [
+     7751027.185157295,
+     7801829.590420321
+    ],
+    "p50_ms": 1.63,
+    "p99_ms": 1.859,
+    "p999_ms": 2.072,
+    "max_ms": 2.359,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.088,
+      "p99_ms": 0.115,
+      "p999_ms": 0.155,
+      "max_ms": 0.315
+     },
+     "primary_reader": {
+      "p50_ms": 0.061,
+      "p99_ms": 0.089,
+      "p999_ms": 0.136,
+      "max_ms": 0.37
+     },
+     "writes_s": 865465.2880778281,
+     "primary_reads_s": 955467.911647679
+    }
+   },
+   "compare": {
+    "ratio": 4.0252,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r0",
+   "cores": 8,
+   "replica_readers": 0,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:00:44Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:01:50Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:02:14Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.757,
+      "p99_ms": 0.983,
+      "p999_ms": 1.081,
+      "max_ms": 1.425
+     },
+     "primary_reader": {
+      "p50_ms": 0.747,
+      "p99_ms": 0.966,
+      "p999_ms": 1.064,
+      "max_ms": 1.474
+     },
+     "writes_s": 994577.0186408346,
+     "primary_reads_s": 530286.7679899996
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": false,
+      "reasons": [
+       "primary reads 489k/s, -7.1% off target 527k/s"
+      ],
+      "ts": "2026-11-18T01:01:05Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:01:27Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": false,
+      "reasons": [
+       "primary writes 917k/s, -7.1% off target 987k/s"
+      ],
+      "ts": "2026-11-18T01:02:36Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.082,
+      "p99_ms": 0.137,
+      "p999_ms": 0.171,
+      "max_ms": 0.342
+     },
+     "primary_reader": {
+      "p50_ms": 0.058,
+      "p99_ms": 0.084,
+      "p999_ms": 0.139,
+      "max_ms": 0.29
+     },
+     "writes_s": 941368.6270562923,
+     "primary_reads_s": 529642.4451507865
+    }
+   },
+   "compare": null,
+   "missing": {
+    "builds": [
+     "frontier"
+    ],
+    "reason": "frontier: 2 of 3 reps invalid (primary reads off target)"
+   }
+  },
+  {
+   "id": "8c-r50",
+   "cores": 8,
+   "replica_readers": 50,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1563709.3551201064,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:03:00Z"
+     },
+     {
+      "ops": 1592585.7751683767,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:04:11Z"
+     },
+     {
+      "ops": 1616721.1912568582,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:04:36Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1592585.7751683767,
+    "cv": 0.0136,
+    "range": [
+     1563709.3551201064,
+     1616721.1912568582
+    ],
+    "p50_ms": 0.532,
+    "p99_ms": 0.811,
+    "p999_ms": 0.958,
+    "max_ms": 1.269,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.757,
+      "p99_ms": 0.995,
+      "p999_ms": 1.089,
+      "max_ms": 1.638
+     },
+     "primary_reader": {
+      "p50_ms": 0.749,
+      "p99_ms": 0.974,
+      "p999_ms": 1.073,
+      "max_ms": 1.81
+     },
+     "writes_s": 995054.4268646204,
+     "primary_reads_s": 529453.576755045
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 7570769.812660468,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:03:23Z"
+     },
+     {
+      "ops": 8286499.891445174,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:03:46Z"
+     },
+     {
+      "ops": 8237464.258323696,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:04:59Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 8237464.258323696,
+    "cv": 0.0406,
+    "range": [
+     7570769.812660468,
+     8286499.891445174
+    ],
+    "p50_ms": 0.084,
+    "p99_ms": 0.151,
+    "p999_ms": 0.26,
+    "max_ms": 0.54,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.083,
+      "p99_ms": 0.136,
+      "p999_ms": 0.179,
+      "max_ms": 0.352
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.134,
+      "p999_ms": 0.138,
+      "max_ms": 0.323
+     },
+     "writes_s": 964922.2752405676,
+     "primary_reads_s": 509580.9639219992
+    }
+   },
+   "compare": {
+    "ratio": 5.1724,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r100",
+   "cores": 8,
+   "replica_readers": 100,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1642673.6353737437,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:05:24Z"
+     },
+     {
+      "ops": 1639755.3181267215,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:06:36Z"
+     },
+     {
+      "ops": 1661754.8042458752,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:07:00Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1642673.6353737437,
+    "cv": 0.0059,
+    "range": [
+     1639755.3181267215,
+     1661754.8042458752
+    ],
+    "p50_ms": 0.966,
+    "p99_ms": 1.343,
+    "p999_ms": 1.482,
+    "max_ms": 2.473,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.761,
+      "p99_ms": 0.995,
+      "p999_ms": 1.097,
+      "max_ms": 1.597
+     },
+     "primary_reader": {
+      "p50_ms": 0.749,
+      "p99_ms": 0.974,
+      "p999_ms": 1.073,
+      "max_ms": 1.966
+     },
+     "writes_s": 989051.4334982629,
+     "primary_reads_s": 529000.557340616
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 11286787.638742192,
+      "valid": false,
+      "reasons": [
+       "primary reads 469k/s, -11.0% off target 527k/s"
+      ],
+      "ts": "2026-11-18T01:05:47Z"
+     },
+     {
+      "ops": 11417475.471413268,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:06:11Z"
+     },
+     {
+      "ops": 11400939.683628606,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:07:24Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 11409207.577520937,
+    "cv": 0.0007,
+    "range": [
+     11400939.683628606,
+     11417475.471413268
+    ],
+    "p50_ms": 0.128,
+    "p99_ms": 0.2265,
+    "p999_ms": 0.2975,
+    "max_ms": 0.618,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.086,
+      "p99_ms": 0.14100000000000001,
+      "p999_ms": 0.187,
+      "max_ms": 0.333
+     },
+     "primary_reader": {
+      "p50_ms": 0.0595,
+      "p99_ms": 0.10200000000000001,
+      "p999_ms": 0.1395,
+      "max_ms": 0.313
+     },
+     "writes_s": 954145.662904033,
+     "primary_reads_s": 511430.65220853337
+    }
+   },
+   "compare": {
+    "ratio": 6.9455,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r200",
+   "cores": 8,
+   "replica_readers": 200,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1622661.6867789102,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:07:49Z"
+     },
+     {
+      "ops": 1677008.997848618,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:09:01Z"
+     },
+     {
+      "ops": 1667066.5567765874,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:09:27Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1667066.5567765874,
+    "cv": 0.0143,
+    "range": [
+     1622661.6867789102,
+     1677008.997848618
+    ],
+    "p50_ms": 1.925,
+    "p99_ms": 2.293,
+    "p999_ms": 2.424,
+    "max_ms": 2.883,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.761,
+      "p99_ms": 0.999,
+      "p999_ms": 1.097,
+      "max_ms": 1.433
+     },
+     "primary_reader": {
+      "p50_ms": 0.749,
+      "p99_ms": 0.974,
+      "p999_ms": 1.073,
+      "max_ms": 1.441
+     },
+     "writes_s": 985233.2340072343,
+     "primary_reads_s": 527642.7338929416
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 11697817.936545365,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:08:13Z"
+     },
+     {
+      "ops": 11767199.000554249,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:08:37Z"
+     },
+     {
+      "ops": 11621060.345855957,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:09:51Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 11697817.936545365,
+    "cv": 0.0051,
+    "range": [
+     11621060.345855957,
+     11767199.000554249
+    ],
+    "p50_ms": 0.266,
+    "p99_ms": 0.423,
+    "p999_ms": 0.522,
+    "max_ms": 1.474,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.084,
+      "p99_ms": 0.141,
+      "p999_ms": 0.173,
+      "max_ms": 0.356
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.134,
+      "p999_ms": 0.14,
+      "max_ms": 0.448
+     },
+     "writes_s": 968150.744833381,
+     "primary_reads_s": 500547.4557290096
+    }
+   },
+   "compare": {
+    "ratio": 7.017,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r400",
+   "cores": 8,
+   "replica_readers": 400,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1660832.5442748333,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:10:16Z"
+     },
+     {
+      "ops": 1661876.5016350558,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:11:29Z"
+     },
+     {
+      "ops": 1692153.3426812754,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:11:53Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1661876.5016350558,
+    "cv": 0.0087,
+    "range": [
+     1660832.5442748333,
+     1692153.3426812754
+    ],
+    "p50_ms": 3.866,
+    "p99_ms": 4.259,
+    "p999_ms": 4.358,
+    "max_ms": 5.308,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.761,
+      "p99_ms": 0.995,
+      "p999_ms": 1.089,
+      "max_ms": 1.564
+     },
+     "primary_reader": {
+      "p50_ms": 0.749,
+      "p99_ms": 0.97,
+      "p999_ms": 1.064,
+      "max_ms": 1.49
+     },
+     "writes_s": 990941.3986149228,
+     "primary_reads_s": 528103.2289033853
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 12680759.105023399,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:10:40Z"
+     },
+     {
+      "ops": 12764608.453035824,
+      "valid": false,
+      "reasons": [
+       "primary reads 464k/s, -11.8% off target 527k/s"
+      ],
+      "ts": "2026-11-18T01:11:04Z"
+     },
+     {
+      "ops": 12698945.918286169,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:12:17Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 12689852.511654783,
+    "cv": 0.0007,
+    "range": [
+     12680759.105023399,
+     12698945.918286169
+    ],
+    "p50_ms": 0.475,
+    "p99_ms": 0.702,
+    "p999_ms": 0.786,
+    "max_ms": 1.073,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.0845,
+      "p99_ms": 0.123,
+      "p999_ms": 0.164,
+      "max_ms": 0.354
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.2005,
+      "p999_ms": 0.21900000000000003,
+      "max_ms": 0.44
+     },
+     "writes_s": 974290.6273809597,
+     "primary_reads_s": 499112.00062898453
+    }
+   },
+   "compare": {
+    "ratio": 7.6359,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r800",
+   "cores": 8,
+   "replica_readers": 800,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1667741.023190446,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:12:42Z"
+     },
+     {
+      "ops": 1681119.4524115995,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:13:54Z"
+     },
+     {
+      "ops": 1649614.6776692935,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:14:19Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1667741.023190446,
+    "cv": 0.0077,
+    "range": [
+     1649614.6776692935,
+     1681119.4524115995
+    ],
+    "p50_ms": 7.667,
+    "p99_ms": 8.126,
+    "p999_ms": 9.895,
+    "max_ms": 10.747,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.761,
+      "p99_ms": 0.991,
+      "p999_ms": 1.097,
+      "max_ms": 1.449
+     },
+     "primary_reader": {
+      "p50_ms": 0.749,
+      "p99_ms": 0.966,
+      "p999_ms": 1.064,
+      "max_ms": 1.458
+     },
+     "writes_s": 987624.614115616,
+     "primary_reads_s": 528542.5055662569
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 14224649.925365001,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:13:06Z"
+     },
+     {
+      "ops": 14315471.024124108,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:13:30Z"
+     },
+     {
+      "ops": 14294572.543771356,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:14:43Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 14294572.543771356,
+    "cv": 0.0027,
+    "range": [
+     14224649.925365001,
+     14315471.024124108
+    ],
+    "p50_ms": 0.847,
+    "p99_ms": 1.187,
+    "p999_ms": 1.294,
+    "max_ms": 2.277,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.085,
+      "p99_ms": 0.136,
+      "p999_ms": 0.169,
+      "max_ms": 0.602
+     },
+     "primary_reader": {
+      "p50_ms": 0.06,
+      "p99_ms": 0.096,
+      "p999_ms": 0.14,
+      "max_ms": 0.614
+     },
+     "writes_s": 962331.9326843509,
+     "primary_reads_s": 509865.7684424675
+    }
+   },
+   "compare": {
+    "ratio": 8.5712,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "8c-r1600",
+   "cores": 8,
+   "replica_readers": 1600,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1685976.0990479835,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:15:08Z"
+     },
+     {
+      "ops": 1642304.3629677247,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:16:24Z"
+     },
+     {
+      "ops": 1653732.7842743543,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:16:49Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1653732.7842743543,
+    "cv": 0.0111,
+    "range": [
+     1642304.3629677247,
+     1685976.0990479835
+    ],
+    "p50_ms": 15.532,
+    "p99_ms": 16.056,
+    "p999_ms": 17.825,
+    "max_ms": 20.054,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.761,
+      "p99_ms": 0.991,
+      "p999_ms": 1.089,
+      "max_ms": 1.417
+     },
+     "primary_reader": {
+      "p50_ms": 0.753,
+      "p99_ms": 0.966,
+      "p999_ms": 1.056,
+      "max_ms": 1.409
+     },
+     "writes_s": 989717.979966227,
+     "primary_reads_s": 525950.7303800589
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 14701229.436456246,
+      "valid": false,
+      "reasons": [
+       "primary reads 485k/s, -7.9% off target 527k/s"
+      ],
+      "ts": "2026-11-18T01:15:34Z"
+     },
+     {
+      "ops": 14678654.575730754,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:15:58Z"
+     },
+     {
+      "ops": 14717436.749990502,
+      "valid": false,
+      "reasons": [
+       "primary reads 484k/s, -8.1% off target 527k/s"
+      ],
+      "ts": "2026-11-18T01:17:14Z"
+     }
+    ],
+    "valid": 1,
+    "ops": 14678654.575730754,
+    "cv": null,
+    "range": [
+     14678654.575730754,
+     14678654.575730754
+    ],
+    "p50_ms": 1.794,
+    "p99_ms": 2.023,
+    "p999_ms": 2.113,
+    "max_ms": 2.555,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.084,
+      "p99_ms": 0.111,
+      "p999_ms": 0.159,
+      "max_ms": 0.309
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.259,
+      "p999_ms": 0.278,
+      "max_ms": 0.458
+     },
+     "writes_s": 977902.2207744921,
+     "primary_reads_s": 495583.5661441391
+    }
+   },
+   "compare": null,
+   "missing": {
+    "builds": [
+     "frontier"
+    ],
+    "reason": "frontier: 2 of 3 reps invalid (primary reads off target)"
+   }
+  },
+  {
+   "id": "16c-r0",
+   "cores": 16,
+   "replica_readers": 0,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:37:51Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:38:56Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:39:21Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 1.351,
+      "p99_ms": 2.949,
+      "p999_ms": 3.194,
+      "max_ms": 3.85
+     },
+     "primary_reader": {
+      "p50_ms": 0.962,
+      "p99_ms": 3.014,
+      "p999_ms": 3.194,
+      "max_ms": 3.801
+     },
+     "writes_s": 1107818.8604696477,
+     "primary_reads_s": 297907.9966712734
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:38:12Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:38:32Z"
+     },
+     {
+      "ops": 0.0,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:39:41Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 0.0,
+    "cv": null,
+    "range": [
+     0.0,
+     0.0
+    ],
+    "p50_ms": null,
+    "p99_ms": null,
+    "p999_ms": null,
+    "max_ms": null,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.08,
+      "p99_ms": 0.136,
+      "p999_ms": 0.169,
+      "max_ms": 0.446
+     },
+     "primary_reader": {
+      "p50_ms": 0.058,
+      "p99_ms": 0.134,
+      "p999_ms": 0.139,
+      "max_ms": 0.421
+     },
+     "writes_s": 1086887.1296737734,
+     "primary_reads_s": 282838.5679750643
+    }
+   },
+   "compare": null
+  },
+  {
+   "id": "16c-r50",
+   "cores": 16,
+   "replica_readers": 50,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1364277.845009441,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:40:08Z"
+     },
+     {
+      "ops": 1371579.2797252573,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:41:21Z"
+     },
+     {
+      "ops": 1342270.9403593042,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:41:47Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1364277.845009441,
+    "cv": 0.0092,
+    "range": [
+     1342270.9403593042,
+     1371579.2797252573
+    ],
+    "p50_ms": 0.28625,
+    "p99_ms": 1.55175,
+    "p999_ms": 1.722,
+    "max_ms": 2.072,
+    "roles": {
+     "writer": {
+      "p50_ms": 1.359,
+      "p99_ms": 2.965,
+      "p999_ms": 3.178,
+      "max_ms": 3.817
+     },
+     "primary_reader": {
+      "p50_ms": 1.294,
+      "p99_ms": 3.112,
+      "p999_ms": 3.276,
+      "max_ms": 3.637
+     },
+     "writes_s": 1114567.310039434,
+     "primary_reads_s": 296676.4027747629
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 8779306.96302679,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:40:31Z"
+     },
+     {
+      "ops": 9116529.268448068,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:40:55Z"
+     },
+     {
+      "ops": 8404006.93541116,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:42:11Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 8779306.96302679,
+    "cv": 0.0332,
+    "range": [
+     8404006.93541116,
+     9116529.268448068
+    ],
+    "p50_ms": 0.073,
+    "p99_ms": 0.20825,
+    "p999_ms": 0.277,
+    "max_ms": 0.778,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.081,
+      "p99_ms": 0.136,
+      "p999_ms": 0.168,
+      "max_ms": 0.436
+     },
+     "primary_reader": {
+      "p50_ms": 0.058,
+      "p99_ms": 0.09,
+      "p999_ms": 0.139,
+      "max_ms": 0.415
+     },
+     "writes_s": 1087553.1799975608,
+     "primary_reads_s": 297794.4348627932
+    }
+   },
+   "compare": {
+    "ratio": 6.4351,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r100",
+   "cores": 16,
+   "replica_readers": 100,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1403096.0689416218,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:42:37Z"
+     },
+     {
+      "ops": 1382877.6343421412,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:43:53Z"
+     },
+     {
+      "ops": 1409580.9924116856,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:44:19Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1403096.0689416218,
+    "cv": 0.0081,
+    "range": [
+     1382877.6343421412,
+     1409580.9924116856
+    ],
+    "p50_ms": 1.245,
+    "p99_ms": 1.9635,
+    "p999_ms": 2.2605,
+    "max_ms": 3.08,
+    "roles": {
+     "writer": {
+      "p50_ms": 1.335,
+      "p99_ms": 3.08,
+      "p999_ms": 3.244,
+      "max_ms": 3.719
+     },
+     "primary_reader": {
+      "p50_ms": 1.327,
+      "p99_ms": 3.014,
+      "p999_ms": 3.227,
+      "max_ms": 3.637
+     },
+     "writes_s": 1116648.1573370236,
+     "primary_reads_s": 298648.58134081966
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 14218164.920253638,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:43:02Z"
+     },
+     {
+      "ops": 14260656.377328409,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:43:27Z"
+     },
+     {
+      "ops": 14594185.767945591,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:44:44Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 14260656.377328409,
+    "cv": 0.0117,
+    "range": [
+     14218164.920253638,
+     14594185.767945591
+    ],
+    "p50_ms": 0.0995,
+    "p99_ms": 0.19,
+    "p999_ms": 0.3435,
+    "max_ms": 0.622,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.082,
+      "p99_ms": 0.137,
+      "p999_ms": 0.1735,
+      "max_ms": 0.522
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.125,
+      "p999_ms": 0.155,
+      "max_ms": 0.419
+     },
+     "writes_s": 1071622.3809575208,
+     "primary_reads_s": 290809.1188959486
+    }
+   },
+   "compare": {
+    "ratio": 10.1637,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r200",
+   "cores": 16,
+   "replica_readers": 200,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1408030.5244744525,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:45:10Z"
+     },
+     {
+      "ops": 1393395.989089602,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:46:28Z"
+     },
+     {
+      "ops": 1453603.5224203912,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:46:55Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1408030.5244744525,
+    "cv": 0.0181,
+    "range": [
+     1393395.989089602,
+     1453603.5224203912
+    ],
+    "p50_ms": 2.37525,
+    "p99_ms": 4.1695,
+    "p999_ms": 4.456,
+    "max_ms": 5.275,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.929,
+      "p99_ms": 3.096,
+      "p999_ms": 3.293,
+      "max_ms": 3.948
+     },
+     "primary_reader": {
+      "p50_ms": 0.929,
+      "p99_ms": 3.08,
+      "p999_ms": 3.26,
+      "max_ms": 3.833
+     },
+     "writes_s": 1114639.0803753452,
+     "primary_reads_s": 298899.54908759886
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 17693422.25453801,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:45:36Z"
+     },
+     {
+      "ops": 18278628.855821744,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:46:02Z"
+     },
+     {
+      "ops": 18387095.182841554,
+      "valid": false,
+      "reasons": [
+       "primary reads 276k/s, -7.1% off target 297k/s"
+      ],
+      "ts": "2026-11-18T01:47:21Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 17986025.55517988,
+    "cv": 0.0163,
+    "range": [
+     17693422.25453801,
+     18278628.855821744
+    ],
+    "p50_ms": 0.16262500000000002,
+    "p99_ms": 0.29725,
+    "p999_ms": 0.44,
+    "max_ms": 0.827,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.082,
+      "p99_ms": 0.1235,
+      "p999_ms": 0.16649999999999998,
+      "max_ms": 0.454
+     },
+     "primary_reader": {
+      "p50_ms": 0.058499999999999996,
+      "p99_ms": 0.09475,
+      "p999_ms": 0.13875,
+      "max_ms": 0.409
+     },
+     "writes_s": 1075704.7254554466,
+     "primary_reads_s": 296136.0735093433
+    }
+   },
+   "compare": {
+    "ratio": 12.7739,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r400",
+   "cores": 16,
+   "replica_readers": 400,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1430246.207074189,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:47:47Z"
+     },
+     {
+      "ops": 1409163.7854676777,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:49:05Z"
+     },
+     {
+      "ops": 1412260.0511118786,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:49:31Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 1412260.0511118786,
+    "cv": 0.0066,
+    "range": [
+     1409163.7854676777,
+     1430246.207074189
+    ],
+    "p50_ms": 4.41475,
+    "p99_ms": 5.57,
+    "p999_ms": 5.668,
+    "max_ms": 6.946,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.929,
+      "p99_ms": 3.096,
+      "p999_ms": 3.244,
+      "max_ms": 3.735
+     },
+     "primary_reader": {
+      "p50_ms": 0.942,
+      "p99_ms": 3.047,
+      "p999_ms": 3.211,
+      "max_ms": 3.833
+     },
+     "writes_s": 1116471.9676214627,
+     "primary_reads_s": 301369.68784064404
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 18886485.768641576,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:48:13Z"
+     },
+     {
+      "ops": 18950185.875341386,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:48:39Z"
+     },
+     {
+      "ops": 18784152.563312106,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:49:58Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 18886485.768641576,
+    "cv": 0.0036,
+    "range": [
+     18784152.563312106,
+     18950185.875341386
+    ],
+    "p50_ms": 0.329,
+    "p99_ms": 0.504,
+    "p999_ms": 0.6425,
+    "max_ms": 1.187,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.082,
+      "p99_ms": 0.143,
+      "p999_ms": 0.18,
+      "max_ms": 0.495
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.134,
+      "p999_ms": 0.139,
+      "max_ms": 0.452
+     },
+     "writes_s": 1049124.787843988,
+     "primary_reads_s": 281222.47574046376
+    }
+   },
+   "compare": {
+    "ratio": 13.3732,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r800",
+   "cores": 16,
+   "replica_readers": 800,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1448068.2381123067,
+      "valid": false,
+      "reasons": [
+       "replica fell behind: applied 97% of primary writes, lag +3.5 MB/s"
+      ],
+      "ts": "2026-11-18T01:50:24Z"
+     },
+     {
+      "ops": 1422647.9963408366,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:51:43Z"
+     },
+     {
+      "ops": 1442608.9548268814,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:52:09Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 1432628.475583859,
+    "cv": 0.007,
+    "range": [
+     1422647.9963408366,
+     1442608.9548268814
+    ],
+    "p50_ms": 8.73225,
+    "p99_ms": 10.9115,
+    "p999_ms": 11.058499999999999,
+    "max_ms": 12.648,
+    "roles": {
+     "writer": {
+      "p50_ms": 1.13,
+      "p99_ms": 3.104,
+      "p999_ms": 3.268,
+      "max_ms": 3.719
+     },
+     "primary_reader": {
+      "p50_ms": 1.13,
+      "p99_ms": 3.0795,
+      "p999_ms": 3.2350000000000003,
+      "max_ms": 3.653
+     },
+     "writes_s": 1116482.8839165466,
+     "primary_reads_s": 299878.3424755485
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 22418935.367635477,
+      "valid": false,
+      "reasons": [
+       "primary writes 1022k/s, -8.3% off target 1114k/s",
+       "primary reads 257k/s, -13.6% off target 297k/s"
+      ],
+      "ts": "2026-11-18T01:50:50Z"
+     },
+     {
+      "ops": 22529854.08183977,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:51:16Z"
+     },
+     {
+      "ops": 22582433.592422687,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:52:35Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 22556143.83713123,
+    "cv": 0.0012,
+    "range": [
+     22529854.08183977,
+     22582433.592422687
+    ],
+    "p50_ms": 0.5093749999999999,
+    "p99_ms": 0.827,
+    "p999_ms": 0.96275,
+    "max_ms": 1.31,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.0825,
+      "p99_ms": 0.121,
+      "p999_ms": 0.161,
+      "max_ms": 0.43
+     },
+     "primary_reader": {
+      "p50_ms": 0.058499999999999996,
+      "p99_ms": 0.0885,
+      "p999_ms": 0.138,
+      "max_ms": 0.395
+     },
+     "writes_s": 1087085.841988564,
+     "primary_reads_s": 293579.2433288325
+    }
+   },
+   "compare": {
+    "ratio": 15.7446,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  },
+  {
+   "id": "16c-r1600",
+   "cores": 16,
+   "replica_readers": 1600,
+   "reader_pipeline": 16,
+   "write_pipeline": 8,
+   "primary_reader_pipeline": 2,
+   "unstable": {
+    "reps": [
+     {
+      "ops": 1406068.330756774,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:53:01Z"
+     },
+     {
+      "ops": 1464702.3751209262,
+      "valid": false,
+      "reasons": [
+       "replica fell behind: applied 99% of primary writes, lag +1.4 MB/s"
+      ],
+      "ts": "2026-11-18T01:54:20Z"
+     },
+     {
+      "ops": 1416249.5818741596,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:54:46Z"
+     }
+    ],
+    "valid": 2,
+    "ops": 1411158.9563154667,
+    "cv": 0.0036,
+    "range": [
+     1406068.330756774,
+     1416249.5818741596
+    ],
+    "p50_ms": 18.2185,
+    "p99_ms": 19.185125,
+    "p999_ms": 20.856375,
+    "max_ms": 22.282,
+    "roles": {
+     "writer": {
+      "p50_ms": 1.1175,
+      "p99_ms": 2.33,
+      "p999_ms": 2.4735,
+      "max_ms": 3.604
+     },
+     "primary_reader": {
+      "p50_ms": 1.1095,
+      "p99_ms": 2.322,
+      "p999_ms": 2.457,
+      "max_ms": 3.522
+     },
+     "writes_s": 1111660.496656469,
+     "primary_reads_s": 296186.8149577913
+    }
+   },
+   "frontier": {
+    "reps": [
+     {
+      "ops": 23592328.95461072,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:53:27Z"
+     },
+     {
+      "ops": 23732639.67635497,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:53:53Z"
+     },
+     {
+      "ops": 23727232.72589504,
+      "valid": true,
+      "reasons": [],
+      "ts": "2026-11-18T01:55:12Z"
+     }
+    ],
+    "valid": 3,
+    "ops": 23727232.72589504,
+    "cv": 0.0027,
+    "range": [
+     23592328.95461072,
+     23732639.67635497
+    ],
+    "p50_ms": 1.122,
+    "p99_ms": 1.331,
+    "p999_ms": 1.5355,
+    "max_ms": 2.162,
+    "roles": {
+     "writer": {
+      "p50_ms": 0.082,
+      "p99_ms": 0.136,
+      "p999_ms": 0.171,
+      "max_ms": 0.479
+     },
+     "primary_reader": {
+      "p50_ms": 0.059,
+      "p99_ms": 0.102,
+      "p999_ms": 0.1395,
+      "max_ms": 0.415
+     },
+     "writes_s": 1078904.7783587633,
+     "primary_reads_s": 288313.1408077961
+    }
+   },
+   "compare": {
+    "ratio": 16.814,
+    "verdict": "frontier higher",
+    "high_var": false
+   }
+  }
+ ],
+ "headline": "Builds: valkey-io unstable <code>0bc71f0</code> vs superset-frontier <code>429ca52</code>. Hosts: c8g.metal-24xl, us-east-2c (the archived 2026-11-04 runs were in us-east-1). Method: both builds on the same hosts in one session, alternating per rep, server restarted per rep, 3 reps; each value is the median of the valid reps. A verdict needs 2+ valid reps per build: higher when medians differ by more than 5% and the rep ranges do not overlap, else tie. A cell without one is marked MISSING with its reason."
+}

@@ -5,58 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ratatoskr</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg, #0f1115); color: var(--text, #d7dae0); }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
-  h1 { font-size: 28px; margin: 0 0 32px; letter-spacing: -0.01em; }
-  h1 span { color: var(--muted, #7d8590); font-weight: 400; font-size: 18px; margin-left: 10px; }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { border: 1px solid var(--border, #2a2f3a); border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; background: var(--card, #161a21); color: var(--card-fg, #d7dae0); }
-  li a { color: var(--accent, #7aa2f7); font-weight: 600; text-decoration: none; font-size: 16px; }
-  li a:hover { text-decoration: underline; }
+  :root { color-scheme: light dark; --bg:#0f1115; --text:#d7dae0; --muted:#8b939e; --border:#2a2f3a; --card:#161a21; --accent:#7aa2f7; --pend:#e0af68; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f7f7f5; --text:#1d2128; --muted:#5d6672; --border:#d8dbe0; --card:#ffffff; --accent:#2f5bd3; --pend:#9a6400; } }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:40px 24px 64px; }
+  h1 { font-size:26px; margin:0 0 6px; } h2 { font-size:19px; margin:32px 0 8px; }
+  p, li { max-width:72ch; } .muted { color:var(--muted); } a { color:var(--accent); }
+  .card { border:1px solid var(--border); border-radius:10px; padding:16px 20px; margin:14px 0; background:var(--card); }
+  .card > a { font-weight:600; font-size:17px; text-decoration:none; }
+  .pend { display:inline-block; border:1px solid var(--pend); color:var(--pend); border-radius:6px; padding:0 7px; font-size:12px; margin-left:8px; vertical-align:2px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>ratatoskr <span>🐿️</span></h1>
-  <ul>
-    <li>
-      <a href="offload/">Valkey benchmarks</a>
-    </li>
-    <li>
-      <a href="offload/replica/">Valkey replica read capacity</a>
-    </li>
-    <li>
-      <a href="offload/perf/">Valkey superset vs upstream perf review</a>
-    </li>
-    <li>
-      <a href="offload/perf-927094894/">Valkey superset-new 927094894 perf review</a>
-    </li>
-    <li>
-      <a href="offload/perf-67805ac58/">Valkey superset-new-prefetch 67805ac58 perf review</a>
-    </li>
-    <li>
-      <a href="offload/perf-r7g-67805ac58/">Valkey superset-new-prefetch vs upstream on r7g.large / r7g.xlarge</a>
-    </li>
-    <li>
-      <a href="offload/perf-r7g-xl-small-core/">Valkey xl-small-core on r7g.large / r7g.xlarge</a>
-    </li>
-    <li>
-      <a href="offload/perf-dragonfly-1026/">Valkey superset vs Dragonfly v2.0.2 vs upstream, 2-16 cores</a>
-    </li>
-    <li>
-      <a href="offload/replica-write-throughput/">Valkey replica write throughput over one replication link: upstream vs superset-frontier</a>
-    </li>
-    <li>
-      <a href="offload/perf-elastic-1027/">Valkey superset elastic core scaling (2-5 cores up and down) and keyspace-shard-bits</a>
-    </li>
-    <li>
-      <a href="offload/write-scaling-1102/">Valkey superset-frontier 29152861a write scaling at 1-16 cores vs upstream: current state and open options</a>
-    </li>
-    <li>
-      <a href="offload/dragonfly-official-repro/">Dragonfly's official benchmark: Dragonfly v1.15.0 and Valkey superset 4056df343 on the same c6gn and c7gn hosts, absolute ops/s side by side</a>
-    </li>
-  </ul>
+<h1>ratatoskr <span class=muted style="font-weight:400;font-size:18px">🐿</span></h1>
+<p class=muted>valkey-io <code>unstable</code> <code>0bc71f0</code> vs <code>superset-frontier</code> <code>429ca52</code>, on c8g.metal-24xl
+in us-east-2c (core scaling: c8gn servers), measured 2026-11-18. Method: both builds on the same hosts in one session, alternating per rep, server restarted per rep, 3 reps; each value is the median of the valid reps. A verdict needs 2+ valid reps per build: higher when medians differ by more than 5% and the rep ranges do not overlap, else tie. A cell without one is marked MISSING with its reason.</p>
+  <div class=card><a href="matrix/">Perf matrix</a><span class=pend>measured 2026-11-18, us-east-2c, 25 MISSING</span>
+    <p class=muted>Every command and shape of the old matrix: SET, GET, 80/20 and 50/50 mixes, HSET, HGET, lists, sets, sorted sets, streams, MGET/MSET, value sizes 16 B-128 KB, key counts, TTL, eviction, zipf, hot key, cluster mode and primary+replica, at P1/P16/P64 and io-threads 1-64.</p></div>
+  <div class=card><a href="core-scaling/">Core scaling on real hosts</a><span class=pend>measured 2026-11-18, us-east-2c</span>
+    <p class=muted>Throughput as the server grows from 2 to 4, 8 and 16 cores, each step a whole c8gn instance one size up.</p></div>
+  <div class=card><a href="replica-capacity/">Replica read capacity</a><span class=pend>measured 2026-11-18, us-east-2c, 2 MISSING</span>
+    <p class=muted>At fixed write and read load on the primary, how many reads/s the replica serves before it falls out of sync. 2, 4, 8 and 16 cores per server.</p></div>
+<h2>Archived runs</h2>
+<p class=muted>The views published until 2026-11-04, unchanged apart from an "archived" banner. Their old links redirect here.</p>
+<ul>
+  <li><a href="archive/2026-11-04/">ratatoskr</a></li>
+  <li><a href="archive/2026-11-04/offload/">offbench · branch compare</a></li>
+  <li><a href="archive/2026-11-04/offload/dragonfly-official-repro/">Dragonfly's official benchmark: Dragonfly v1.15.0 and Valkey superset on the same hosts</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-67805ac58/">offbench · superset-new-prefetch 67805ac58 perf review</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-927094894/">offbench · superset-new 927094894 perf review</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-dragonfly-1026/">offbench · superset vs Dragonfly v2.0.2 vs upstream, 2-16 cores</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-elastic-1027/">offbench · elastic core scaling and keyspace-shard-bits, superset vs upstream</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-r7g-67805ac58/">offbench · superset-new-prefetch vs upstream on r7g.large / r7g.xlarge</a></li>
+  <li><a href="archive/2026-11-04/offload/perf-r7g-xl-small-core/">offbench · xl-small-core on r7g.xlarge / r7g.large</a></li>
+  <li><a href="archive/2026-11-04/offload/perf/">offbench · superset vs upstream perf review</a></li>
+  <li><a href="archive/2026-11-04/offload/replica-write-throughput/">offbench · replica write throughput over one replication link</a></li>
+  <li><a href="archive/2026-11-04/offload/replica/">offbench · replica read capacity</a></li>
+  <li><a href="archive/2026-11-04/offload/write-scaling-1102/">offbench · write scaling at low core counts, superset 29152861a vs upstream</a></li>
+</ul>
 </main>
 </body>
 </html>
