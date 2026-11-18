@@ -35,7 +35,9 @@
   "order": "builds alternating per rep, server restarted per rep",
   "launch": "20261117T214555Z-scaling-855796: layout a, us-east-2c, cluster placement group ratatoskr-scaling-use2",
   "instances": "servers 1x c8gn.large, 1x c8gn.xlarge, 1x c8gn.2xlarge, 1x c8gn.4xlarge; clients 2x c8g.metal-24xl",
-  "caveat": "Launched with layout a: the hosts are in us-east-2, so absolute numbers may shift slightly against the older us-east-1 pages, while this view's verdicts compare the two builds on the same hosts."
+  "caveat": "Launched with layout a: the hosts are in us-east-2, so absolute numbers may shift slightly against the older us-east-1 pages, while this view's verdicts compare the two builds on the same hosts.",
+  "run_s": 16,
+  "validity": "every client connected; no client errors; every window second reported; client < 90% busy; ENA allowance counters flat (else NIC-capped, a lower bound)"
  },
  "cells": [
   {

@@ -43,34 +43,11 @@ function render(D, cols) {
     }).join('');
     t.innerHTML = `<h2>Replica reads/s while in sync</h2><p class=muted>Highest replica read rate over in-sync steps below the first step where the replica fell behind, at the primary load X writes/s and Y reads/s (unstable / frontier as delivered). Per-step numbers are in the table below.</p>` +
       `<table><thead><tr><th>cores</th><th>X writes/s</th><th>Y reads/s</th><th class=l>${D.builds.unstable.label}</th><th class=l>${D.builds.frontier.label}</th></tr></thead><tbody>${rows}</tbody></table>`;
-    document.getElementById('setup').after(t);
+    const host = document.getElementById('capacity');
+    if (host) host.replaceChildren(t); else document.getElementById('setup').after(t);
   }
   if (D.setup && D.setup.caveat) {
     const p = document.createElement('p'); p.className = 'pend'; p.style.display = 'block'; p.style.padding = '6px 10px';
     p.textContent = D.setup.caveat; document.getElementById('builds').before(p);
   }
-  const cv = document.getElementById('chart');
-  if (cv && D.view === 'core-scaling') scalingChart(D, cv);
-}
-// Core scaling: ops/s against cores, one line per build and workload, points labelled by instance.
-function scalingChart(D, cv) {
-  const B = D.shown_builds || ['unstable', 'frontier'];
-  const have = D.cells.some(c => B.some(b => c[b].ops));
-  if (!have || typeof Chart === 'undefined') { cv.replaceWith(Object.assign(document.createElement('p'),
-    {className: 'muted', textContent: 'Chart appears when the first step has data.'})); return; }
-  const sel = document.getElementById('shape'), shapes = [...new Set(D.cells.map(c => `${c.workload} P${c.P}`))];
-  sel.innerHTML = shapes.map(s => `<option>${s}</option>`).join('');
-  let chart;
-  const draw = () => {
-    const cs = D.cells.filter(c => `${c.workload} P${c.P}` === sel.value).sort((a, b) => a.cores - b.cores);
-    const ds = B.map((b, i) => ({label: D.builds[b].label, borderDash: i ? [] : [6, 4],
-      data: cs.map(c => ({x: c.cores, y: c[b].ops, inst: c.instance}))}));
-    if (chart) chart.destroy();
-    chart = new Chart(cv, {type: 'line', data: {datasets: ds}, options: {parsing: false,
-      scales: {x: {type: 'linear', title: {display: true, text: 'cores (instance)'}, ticks: {stepSize: 2,
-        callback: v => { const c = cs.find(c => c.cores === v); return c ? `${v} (${c.instance})` : ''; }}},
-        y: {beginAtZero: true, title: {display: true, text: 'ops/s'}}},
-      plugins: {tooltip: {callbacks: {label: t => `${t.dataset.label} ${t.raw.inst}: ${fmt(t.raw.y)} ops/s`}}}}});
-  };
-  sel.onchange = draw; draw();
 }

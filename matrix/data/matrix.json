@@ -35,7 +35,9 @@
   "scenarios_from": "archive/2026-11-04/offload/perf-67805ac58 (304 cells, tiers 1-4)",
   "launch": "20261117T2340Z-matrix-2c: layout b, us-east-2c, cluster placement group ratatoskr-matrix-2c",
   "instances": "2 pods: servers 2x c8g.metal-24xl; clients 4x c8g.metal-24xl",
-  "caveat": "Two pods of 1 server + 2 clients (c8g.metal-24xl, us-east-2c, one cluster placement group); each cell, both builds, ran on one pod. Hosts are in us-east-2, so absolute numbers may shift slightly against the older us-east-1 pages; this view's verdicts compare the two builds on the same hosts."
+  "caveat": "Two pods of 1 server + 2 clients (c8g.metal-24xl, us-east-2c, one cluster placement group); each cell, both builds, ran on one pod. Hosts are in us-east-2, so absolute numbers may shift slightly against the older us-east-1 pages; this view's verdicts compare the two builds on the same hosts.",
+  "run_s": 16,
+  "validity": "every client connected; no client errors; every window second reported; client < 90% busy; ENA allowance counters flat (else NIC-capped, a lower bound)"
  },
  "cells": [
   {

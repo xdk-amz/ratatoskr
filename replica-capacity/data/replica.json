@@ -41,7 +41,8 @@
   "builds_bytes": "same binaries on primary and replica: unstable sha256 30f0663741178cdc..., frontier 7c625ac7a69f2ed2..., GCC 11.5.0, plain make",
   "latency_note": "Each build runs at its own calibrated writer and primary-reader connection counts (both builds deliver the same X writes/s and Y reads/s), so writer and primary-reader latency follow those counts; replica-reader latency is at matched replica reader connections.",
   "extension": "8 and 16 cores: a 3200-reader step was added because frontier reads were still rising at 1600.",
-  "rtt_ms": "generator to primary 0.105, generator to replica 0.103, primary to replica 0.109 (median ping)"
+  "rtt_ms": "generator to primary 0.105, generator to replica 0.103, primary to replica 0.109 (median ping)",
+  "validity": "primary write and read rates within 7% of their targets; replica keeps up (applied writes and lag); no harness errors; RTT <= 0.15 ms"
  },
  "per_core": {
   "2": {

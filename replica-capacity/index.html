@@ -5,37 +5,75 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ratatoskr · Replica read capacity</title>
 <style>
-  :root { color-scheme: light dark; --bg:#0f1115; --text:#d7dae0; --muted:#8b939e; --border:#2a2f3a; --card:#161a21; --accent:#7aa2f7; --pend:#e0af68; }
-  @media (prefers-color-scheme: light) { :root { --bg:#f7f7f5; --text:#1d2128; --muted:#5d6672; --border:#d8dbe0; --card:#ffffff; --accent:#2f5bd3; --pend:#9a6400; } }
+  :root { color-scheme: light dark; --bg:#0f1115; --text:#d7dae0; --muted:#8b939e; --border:#2a2f3a; --card:#161a21; --accent:#7aa2f7; --pend:#e0af68;
+          --u:#7aa2f7; --f:#ff9e64; --hatch:#3a404c; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f7f7f5; --text:#1d2128; --muted:#5d6672; --border:#d8dbe0; --card:#ffffff; --accent:#2f5bd3; --pend:#9a6400;
+          --u:#2f5bd3; --f:#c2410c; --hatch:#c9cdd3; } }
   body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
-  main { max-width:1100px; margin:0 auto; padding:40px 24px 64px; }
-  h1 { font-size:26px; margin:0 0 6px; } h2 { font-size:19px; margin:32px 0 8px; } h3 { font-size:16px; margin:20px 0 6px; }
-  p, li { max-width:72ch; } .muted { color:var(--muted); }
-  a { color:var(--accent); }
+  main { max-width:1200px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:24px; margin:0 0 4px; } h2 { font-size:19px; margin:36px 0 6px; } h3 { font-size:15px; margin:0 0 4px; }
+  h3.sec { font-size:15px; margin:18px 0 8px; color:var(--muted); font-weight:600; }
+  p, li { max-width:80ch; } .muted { color:var(--muted); } a { color:var(--accent); }
   .card { border:1px solid var(--border); border-radius:10px; padding:16px 20px; margin:14px 0; background:var(--card); color:var(--text); }
   .card > a { font-weight:600; font-size:17px; text-decoration:none; }
-  .pend { display:inline-block; border:1px solid var(--pend); color:var(--pend); border-radius:6px; padding:0 7px; font-size:12px; margin-left:8px; vertical-align:2px; }
+  .pend { display:inline-block; border:1px solid var(--pend); color:var(--pend); border-radius:6px; padding:0 7px; font-size:12px; margin-left:8px; vertical-align:3px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; }
+  .panel { border:1px solid var(--border); border-radius:10px; background:var(--card); padding:12px 14px 8px; min-width:0; }
+  .key { display:flex; gap:18px; flex-wrap:wrap; font-size:13px; margin:4px 0 12px; } .key i { display:inline-block; width:22px; height:3px; vertical-align:middle; margin-right:6px; }
   table { border-collapse:collapse; font-size:13px; margin:8px 0 16px; width:100%; }
   th, td { border-bottom:1px solid var(--border); padding:4px 8px; text-align:right; white-space:nowrap; }
   th { color:var(--muted); font-weight:500; } td.l, th.l { text-align:left; white-space:normal; }
   td.empty { color:var(--muted); }
+  .scroll { overflow-x:auto; }
+  table.heat { width:auto; min-width:min(100%, 560px); } table.heat td { text-align:center; font-variant-numeric:tabular-nums; font-weight:600; min-width:76px; }
+  table.heat th.l { white-space:nowrap; } table.heat tr.hsec th { color:var(--text); font-weight:600; padding-top:10px; }
+  td.miss { background:repeating-linear-gradient(45deg, var(--hatch) 0 6px, transparent 6px 12px); color:var(--muted); font-weight:500; font-size:12px; }
+  td.absent { color:var(--muted); font-weight:400; }
+  ol.notes { font-size:12px; color:var(--muted); margin:0 0 8px; padding-left:22px; }
+  .scale { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:2px 0 8px; flex-wrap:wrap; } .scale span.bar { width:220px; height:10px; border-radius:3px; }
+  table.setup { width:auto; } table.setup th { text-align:left; padding-right:18px; vertical-align:top; } table.setup td { text-align:left; white-space:normal; }
   dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0; } dt { color:var(--muted); } dd { margin:0; }
   code { font-size:13px; }
+  [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <main>
 <p><a href="../">ratatoskr home</a></p>
 <h1>Replica read capacity <span class=pend id=status>loading</span></h1>
-<p>At fixed write and read load on the primary, how many reads/s the replica serves before it falls out of sync. 2, 4, 8 and 16 cores per server.</p>
-<h2>Builds</h2><dl id=builds></dl>
-<h2>Setup</h2><dl id=setup></dl>
+<p class=muted>At fixed write and read load on the primary, how many reads/s the replica serves before it falls out of sync, at 2, 4, 8 and 16 cores per server. Two builds on the same hosts: valkey-io <b>unstable</b> and <b>superset-frontier</b>. Setup and method are at the bottom.</p>
+<div id=capacity></div>
+
+<h2>Throughput</h2>
+<div class=key><span><i style="background:var(--u)"></i>unstable</span><span><i style="background:var(--f)"></i>superset-frontier</span><span class=muted>points: median of valid reps; whiskers: min–max of valid reps; a MISSING value is a gap, never zero</span></div>
+<div id=tput></div>
+
+<h2>Latency percentiles</h2>
+<div class=key><span class=muted>Bars in each group: unstable p50, p99, p99.9 (blue, dark to light), then superset-frontier p50, p99, p99.9 (orange, dark to light); ms, median of valid reps. A percentile that was not recorded is shown as "not measured", never as zero.</span></div>
+<div id=lat></div>
+
+<h2>superset-frontier / unstable throughput</h2>
+<div class=scale><span>unstable higher</span><span id=scalelo></span><span class=bar id=scalebar></span><span id=scalehi></span><span>superset-frontier higher</span><span>· log2 scale centred on 1.00</span></div>
+<div class=scroll><table class=heat id=heat></table></div>
+<div id=heatnotes></div>
 
 <h2>Results <span class=muted>(<span id=n></span> scenarios)</span></h2>
-<p class=muted>Absolute ops/s for both builds side by side; latency in ms; the ratio appears only next to both numbers. Each value is the median of the valid reps; the rep count and range go with it.</p>
-<div style="overflow-x:auto"><table id=cells></table></div>
+<p class=muted id=legend>Absolute ops/s for both builds side by side; latency in ms; the ratio appears only next to both numbers. Each value is the median of the valid reps; the rep count and range go with it.</p>
+<div class=scroll><table id=cells></table></div>
+<div hidden><dl id=builds></dl><dl id=setup></dl></div>
+
+<h2>Setup</h2>
+<div class=scroll><table class=setup id=setuptab></table></div>
 </main>
+<script src="../assets/chart.umd.min.js"></script>
 <script src="../assets/view.js"></script>
-<script>fetch('data/replica.json').then(r => r.json()).then(D => render(D, ["id", "cores", "replica_readers", "write_pipeline", "primary_reader_pipeline"]));</script>
+<script src="../assets/page.js"></script>
+<script>
+const SPEC = {x: "replica_readers", xTitle: "replica readers", yTitle: "replica reads/s",
+    group: c => [`${c.cores}`, `${c.cores} cores`, null, c.cores],
+    noRatio: "no replica readers at this step (baseline)",
+    cols: ["id", "cores", "replica_readers", "write_pipeline", "primary_reader_pipeline"]};
+(window.VIEW_DATA ? Promise.resolve(window.VIEW_DATA) : fetch("data/replica.json").then(r => r.json())).then(D => renderPage(D, SPEC));
+</script>
 </body>
 </html>
