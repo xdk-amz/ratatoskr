@@ -2,14 +2,16 @@
 // Order: throughput per workload -> latency percentiles per workload -> candidate/baseline heatmap -> results table
 // -> one compact Setup table. Everything comes from the view's data file; SPEC (per view, in the page) only names fields.
 //   SPEC = {x: cell field swept on the x axis, xTitle, group: cell -> [key, title, section, sortKey],
-//           yTitle (throughput axis), cols (results table columns)}
+//           yTitle (throughput axis), cols (results table columns),
+//           hm: {row: cell -> [key, label, section, sortKey, title], col: cell -> [groupKey, groupLabel] (default: pipeline),
+//                pct: latency field, latName, rows/cols: words for the key text}: the Heatmap tabs of Throughput and Latency}
 const PAGE_BUILDS = [["unstable", "unstable", "--u"], ["frontier", "superset-frontier", "--f"]];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const fmtOps = v => v == null ? "—" : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 1 : 2) + "M" : v >= 1e3 ? (v / 1e3).toFixed(0) + "k" : String(Math.round(v));
 const shade = (hex, a) => { const h = hex.replace("#", ""); const n = parseInt(h.length === 3 ? h.replace(/./g, "$&$&") : h, 16);
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 const escH = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const pageCharts = [];
+const pageCharts = { tput: [], lat: [] };
 
 const whiskers = { id: "whiskers", afterDatasetsDraw(chart) {   // min-max of valid reps
   const { ctx, scales: { y } } = chart;
@@ -38,8 +40,8 @@ const notMeasured = { id: "notMeasured", afterDatasetsDraw(chart) {   // label a
 }};
 
 // Charts are sized once per draw (responsive: false) and redrawn when the window width changes.
-function pagePanel(host, title) {
-  const d = document.createElement("div"); d.className = "panel";
+function pagePanel(host, title, key) {
+  const d = document.createElement("div"); d.className = "panel"; d.dataset.key = key;
   d.innerHTML = `<h3>${escH(title)}</h3><div style="position:relative;height:240px"><canvas></canvas></div>`;
   host.appendChild(d);
   const box = d.lastElementChild, cv = box.querySelector("canvas");
@@ -47,7 +49,7 @@ function pagePanel(host, title) {
   cv.style.width = w + "px"; cv.style.height = "240px"; cv.width = w; cv.height = 240;
   return cv;
 }
-const pageChart = (host, title, config) => pageCharts.push(new Chart(pagePanel(host, title), config()));
+const pageChart = (sec, host, g, config) => pageCharts[sec].push(new Chart(pagePanel(host, g.title, g.key), config()));
 function pageAxes() {
   return { responsive: false, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
     scales: { x: { grid: { color: css("--border") }, ticks: { color: css("--muted") } },
@@ -74,7 +76,7 @@ function sectioned(host, groups, each) {   // a sub-heading whenever the group's
 }
 
 function pageThroughput(D, S, groups) {
-  sectioned(document.getElementById("tput"), groups, (host, g) => pageChart(host, g.title, () => {
+  sectioned(document.getElementById("tput"), groups, (host, g) => pageChart("tput", host, g, () => {
     const o = pageAxes();
     o.scales.x.title = { display: true, text: S.xTitle, color: css("--muted") };
     o.scales.y.title = { display: true, text: S.yTitle, color: css("--muted") };
@@ -91,7 +93,7 @@ function pageThroughput(D, S, groups) {
 
 function pageLatency(D, S, groups) {
   const PCT = [["p50_ms", "p50", 1], ["p99_ms", "p99", 0.7], ["p999_ms", "p99.9", 0.45]];
-  sectioned(document.getElementById("lat"), groups, (host, g) => pageChart(host, g.title, () => {
+  sectioned(document.getElementById("lat"), groups, (host, g) => pageChart("lat", host, g, () => {
     const o = pageAxes();
     o.scales.x.title = { display: true, text: S.xTitle, color: css("--muted") };
     o.scales.y.title = { display: true, text: "ms", color: css("--muted") };
@@ -108,36 +110,102 @@ function pageLatency(D, S, groups) {
   }));
 }
 
-function pageHeat(D, S, groups) {
-  const xs = [...new Set(D.cells.map(c => c[S.x]))].sort((a, b) => a - b);
-  const rs = D.cells.filter(c => c.compare).map(c => Math.abs(Math.log2(c.compare.ratio)));
-  const L = Math.max(1, Math.ceil(Math.max(0, ...rs)));   // log2 scale, centred on 1.0, reaching the largest ratio
-  const col = r => { const t = Math.max(-1, Math.min(1, Math.log2(r) / L));
-    return t >= 0 ? shade(css("--f"), 0.08 + 0.82 * t) : shade(css("--u"), 0.08 + 0.82 * -t); };
-  document.getElementById("scalebar").style.background =
-    `linear-gradient(90deg, ${shade(css("--u"), .9)}, ${shade(css("--u"), .08)} 50%, ${shade(css("--f"), .08)} 50%, ${shade(css("--f"), .9)})`;
-  document.getElementById("scalelo").textContent = `1/${2 ** L}×`;
-  document.getElementById("scalehi").textContent = `${2 ** L}×`;
-  const notes = [];
-  let h = `<thead><tr><th class=l>workload</th>${xs.map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>`;
-  let sec = null;
-  for (const g of groups) {
-    if (g.section && g.section !== sec) { sec = g.section; h += `<tr class=hsec><th class=l colspan=${xs.length + 1}>${escH(sec)}</th></tr>`; }
-    h += `<tr><th class=l>${escH(g.title)}</th>`;
-    for (const x of xs) {
-      const c = g.cells.find(c => c[S.x] === x);
-      if (!c) { h += `<td class=absent title="not in this sweep">·</td>`; continue; }
-      if (c.missing) { notes.push([notes.length + 1, g.title, x, c.missing.reason]);
-        h += `<td class=miss title="${escH(c.missing.reason)}">MISSING<sup>${notes.length}</sup></td>`; continue; }
-      if (!c.compare) { h += `<td class=absent title="no ratio: ${escH(S.noRatio || "no comparable value")}">n/a</td>`; continue; }
-      const r = c.compare.ratio, t = Math.abs(Math.log2(r)) / L;
-      h += `<td style="background:${col(r)};${t > 0.55 ? "color:#fff" : ""}" title="${escH(c.compare.verdict)}${c.compare.high_var ? ", high variance" : ""}">${r.toFixed(2)}×</td>`;
+// log2 colour centred on 1.0, r = how far superset-frontier is ahead: r > 1 blue (--good, faster / lower latency),
+// r < 1 orange (--bad, slower / higher latency), full strength at 2^L or 1/2^L
+const heatCol = (r, L) => { const t = Math.max(-1, Math.min(1, Math.log2(r) / L));
+  return t >= 0 ? shade(css("--good"), 0.08 + 0.82 * t) : shade(css("--bad"), 0.08 + 0.82 * -t); };
+const heatGrad = () => `linear-gradient(90deg, ${shade(css("--bad"), .9)}, ${shade(css("--bad"), .08)} 50%, ${shade(css("--good"), .08)} 50%, ${shade(css("--good"), .9)})`;
+const fmtX = r => (r >= 10 ? r.toFixed(1) : r.toFixed(2)) + "×";
+const nicCapped = c => PAGE_BUILDS.some(([k]) => c[k].reps.some(r => r.valid && r.reasons.some(x => x.startsWith("nic-capped"))));
+
+// The old perf-page heatmap: one row per workload (under tier headings), one column per pipeline x swept-axis value,
+// each square the superset-frontier / unstable ratio. kind "tput": ops/s ratio. kind "lat": latency ratio at S.hm.pct,
+// inverted for the colour so blue always means superset-frontier ahead.
+function pageHm(D, S, kind) {
+  const H = S.hm, pct = H.pct || "p99_ms", pname = pct.replace("_ms", "").replace("p999", "p99.9");
+  const cg = H.col || (c => [c.P, `pipeline ${c.P}`]), ck = c => `${cg(c)[0]}|${c[S.x]}`;
+  const cols = [...new Map(D.cells.map(c => [ck(c), { P: cg(c)[0], gl: cg(c)[1], x: c[S.x] }])).values()].sort((a, b) => a.P - b.P || a.x - b.x);
+  const rows = new Map();
+  D.cells.forEach((c, i) => { const [key, label, section, sk, title] = H.row(c);
+    if (!rows.has(key)) rows.set(key, { label, section, sk: sk ?? 0, i, title, at: new Map() }); rows.get(key).at.set(ck(c), c); });
+  const rs = [...rows.values()].sort((a, b) => (a.sk - b.sk) || (a.i - b.i));
+  const val = c => { if (c.missing) return null;
+    if (kind === "tput") return c.compare ? c.compare.ratio : null;
+    const f = c.frontier[pct], u = c.unstable[pct]; return f && u ? f / u : null; };
+  const noRatio = c => !c.missing && !c.compare && S.noRatio;   // e.g. a baseline step with nothing to compare
+  const ahead = r => kind === "tput" ? r : 1 / r;   // > 1 = superset-frontier ahead
+  const L = Math.max(1, Math.ceil(Math.max(0, ...D.cells.map(val).filter(Boolean).map(r => Math.abs(Math.log2(r))))));
+  const unit = kind === "tput" ? S.yTitle : `${pname} ms`, fv = (c, k) => kind === "tput" ? fmtOps(c[k].ops) : c[k][pct].toFixed(3);
+  const groups = [...new Set(cols.map(c => c.P))].map(P => [cols.find(c => c.P === P).gl, cols.filter(c => c.P === P).length]);
+  let h = `<thead><tr><th></th>${groups.map(([gl, n]) => `<th class=grp colspan=${n}>${escH(gl)}</th>`).join("")}</tr>` +
+    `<tr><th class=l>${escH(S.xTitle)} →</th>${cols.map(c => `<th class=col>${c.x}</th>`).join("")}</tr></thead><tbody>`;
+  const notes = []; let sec = null;
+  for (const r of rs) {
+    if (r.section && r.section !== sec) { sec = r.section; h += `<tr class=hsec><th class=l colspan=${cols.length + 1}><span>${escH(sec)}</span></th></tr>`; }
+    h += `<tr><th class=l title="${escH(r.title || r.label)}">${escH(r.label)}</th>`;
+    for (const col of cols) {
+      const c = r.at.get(`${col.P}|${col.x}`);
+      if (!c) { h += `<td class=none></td>`; continue; }
+      const where = `${r.label}, ${cg(c)[1]}, ${S.xTitle} ${c[S.x]}`, key = escH(S.group(c)[0]), at = `tabindex=0 data-key="${key}"`;
+      if (c.missing) { notes.push([notes.length + 1, where, c.missing.reason]);
+        h += `<td class=miss ${at} title="${escH(where + ": MISSING, " + c.missing.reason)}">MISSING<sup>${notes.length}</sup></td>`; continue; }
+      if (noRatio(c)) { h += `<td class=absent ${at} title="${escH(where + ": no ratio, " + S.noRatio)}">n/a</td>`; continue; }
+      const v = val(c);
+      if (v == null) { h += `<td class=absent ${at} title="${escH(where + ": " + pname + " not measured")}">n/m</td>`; continue; }
+      const marks = (nicCapped(c) ? "N" : "") + (c.compare && c.compare.high_var ? "~" : "");
+      const tie = kind === "tput" && c.compare && c.compare.verdict === "tie";
+      const strong = Math.abs(Math.log2(v)) / L > 0.55;
+      h += `<td ${at} class="${tie ? "tie" : ""}" style="background:${heatCol(ahead(v), L)};${strong ? "color:#fff" : ""}" ` +
+        `title="${escH(`${where}: superset-frontier ${fv(c, "frontier")} vs unstable ${fv(c, "unstable")} ${unit}` + (kind === "tput" ? ` (${c.compare.verdict})` : "") + (marks.includes("N") ? "; NIC allowance hit, a lower bound" : "") + (marks.includes("~") ? "; high variance" : ""))}">` +
+        `${fmtX(v)}${marks ? `<sup>${marks}</sup>` : ""}</td>`;
     }
     h += "</tr>";
   }
-  document.getElementById("heat").innerHTML = h + "</tbody>";
-  document.getElementById("heatnotes").innerHTML = notes.length ? "<ol class=notes>" + notes.map(([n, t, x, why]) =>
-    `<li value=${n}><b>${escH(t)}</b>, ${escH(S.xTitle)} ${x}: ${escH(why)}</li>`).join("") + "</ol>" : "";
+  const hm = document.getElementById(`${kind}-hm`);
+  hm.innerHTML = h + "</tbody>";
+  const lname = `${H.latName || ""}${pname}`;
+  const [lo, hi] = kind === "tput" ? ["superset-frontier slower", "superset-frontier faster"] : [`superset-frontier higher ${lname} (worse)`, `superset-frontier lower ${lname} (better)`];
+  const ends = kind === "tput" ? [`1/${2 ** L}×`, `${2 ** L}×`] : [`${2 ** L}×`, `1/${2 ** L}×`];
+  document.getElementById(`${kind}-hmkey`).innerHTML = (kind === "tput"
+    ? `Each square is superset-frontier ${escH(S.yTitle)} ÷ unstable ${escH(S.yTitle)}, medians of the valid reps. <b>Blue</b>: superset-frontier faster; <b>orange</b>: slower. A thin border marks a tie (within 5% or overlapping rep ranges). `
+    : `Each square is superset-frontier ${escH(lname)} ÷ unstable ${escH(lname)} (ms, medians of the valid reps). <b>Blue</b>: superset-frontier has the lower (better) ${escH(lname)}; <b>orange</b>: higher (worse). `) +
+    `Rows: ${escH(H.rows || "workload")}. Columns: ${escH(H.cols || `pipeline depth, then ${S.xTitle}`)}. Markers: <b>N</b> NIC allowance hit (a lower bound), <b>~</b> high variance (CV over 5%), hatched MISSING with its reason below` +
+    (S.noRatio ? `, n/a ${escH(S.noRatio)}` : "") + `. Click a square or press Enter on it to open its chart in Graphs.`;
+  document.getElementById(`${kind}-hmscale`).innerHTML = `<span>${lo}</span><span>${ends[0]}</span><span class=bar style="background:${heatGrad()}"></span>` +
+    `<span>${ends[1]}</span><span>${hi}</span><span>· log2 scale centred on 1.00</span>`;
+  document.getElementById(`${kind}-hmnotes`).innerHTML = notes.length ? `<details class=hmnotes><summary>Why ${notes.length} squares are MISSING</summary><ol class=notes>` +
+    notes.map(([n, w, why]) => `<li value=${n}><b>${escH(w)}</b>: ${escH(why)}</li>`).join("") + "</ol></details>" : "";
+  hm.querySelectorAll("td[data-key]").forEach(td => {   // a square opens its workload's chart in the Graphs tab
+    const go = () => pageShowPanel(kind, td.dataset.key);
+    td.onclick = go; td.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+}
+
+// Tabs (WAI-ARIA tabs pattern): arrow keys, Home and End move between tabs and select them; one tab stop per tablist.
+const pageTabHooks = {};
+function pageTabs() {
+  document.querySelectorAll("[role=tablist]").forEach(list => {
+    const tabs = [...list.querySelectorAll("[role=tab]")];
+    const pick = (t, focus) => {
+      tabs.forEach(x => { const on = x === t; x.setAttribute("aria-selected", on); x.tabIndex = on ? 0 : -1;
+        document.getElementById(x.getAttribute("aria-controls")).hidden = !on; });
+      if (focus) t.focus();
+      const hook = pageTabHooks[list.dataset.sec]; if (hook) hook(t.dataset.view);
+    };
+    list.pick = view => pick(tabs.find(t => t.dataset.view === view), false);
+    tabs.forEach((t, i) => {
+      t.onclick = () => pick(t, false);
+      t.onkeydown = e => {
+        const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+        if (j == null) return; e.preventDefault(); pick(tabs[(j + tabs.length) % tabs.length], true);
+      };
+    });
+  });
+}
+function pageShowPanel(sec, key) {
+  const list = document.querySelector(`[role=tablist][data-sec=${sec}]`); if (list) list.pick("graphs");
+  const d = document.querySelector(`#${sec} .panel[data-key="${CSS.escape(key)}"]`); if (!d) return;
+  d.scrollIntoView({ block: "center" }); d.classList.add("flash"); setTimeout(() => d.classList.remove("flash"), 1600);
 }
 
 function pageSetup(D, S) {   // every row from the data file: builds, harness, setup block, and what the cells imply
@@ -173,11 +241,19 @@ function renderPage(D, S) {
   render(D, S.cols);   // status, headline, results table (and the replica capacity table) from view.js
   pageSetup(D, S);
   const groups = pageGroups(D, S);
+  // Charts are drawn at the width of their section and only while it is shown; a section in a hidden tab is
+  // marked stale and redrawn when its Graphs tab is shown (also after a resize or a colour scheme change).
+  const SECS = { tput: () => pageThroughput(D, S, groups), lat: () => pageLatency(D, S, groups) }, drawnW = {};
+  const shown = id => document.getElementById(id).offsetParent !== null;
+  const drawSec = id => { pageCharts[id].splice(0).forEach(c => c.destroy()); document.getElementById(id).innerHTML = "";
+    SECS[id](); drawnW[id] = document.getElementById(id).getBoundingClientRect().width; };
   const draw = () => {
-    pageCharts.splice(0).forEach(c => c.destroy());
-    ["tput", "lat"].forEach(id => document.getElementById(id).innerHTML = "");
-    pageThroughput(D, S, groups); pageLatency(D, S, groups); pageHeat(D, S, groups);
+    for (const id in SECS) if (shown(id)) drawSec(id); else drawnW[id] = null;
+    if (S.hm) { pageHm(D, S, "tput"); pageHm(D, S, "lat"); }
   };
+  for (const id in SECS) pageTabHooks[id] = view => {
+    if (view === "graphs" && drawnW[id] !== document.getElementById(id).getBoundingClientRect().width) drawSec(id); };
+  pageTabs();
   draw();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
   let lastW = innerWidth, t = null;

@@ -6,9 +6,9 @@
 <title>ratatoskr · Perf matrix</title>
 <style>
   :root { color-scheme: light dark; --bg:#0f1115; --text:#d7dae0; --muted:#8b939e; --border:#2a2f3a; --card:#161a21; --accent:#7aa2f7; --pend:#e0af68;
-          --u:#7aa2f7; --f:#ff9e64; --hatch:#3a404c; }
+          --u:#7aa2f7; --f:#ff9e64; --good:#7aa2f7; --bad:#ff9e64; --hatch:#3a404c; }
   @media (prefers-color-scheme: light) { :root { --bg:#f7f7f5; --text:#1d2128; --muted:#5d6672; --border:#d8dbe0; --card:#ffffff; --accent:#2f5bd3; --pend:#9a6400;
-          --u:#2f5bd3; --f:#c2410c; --hatch:#c9cdd3; } }
+          --u:#2f5bd3; --f:#c2410c; --good:#2f5bd3; --bad:#c2410c; --hatch:#c9cdd3; } }
   body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
   main { max-width:1200px; margin:0 auto; padding:32px 20px 64px; }
   h1 { font-size:24px; margin:0 0 4px; } h2 { font-size:19px; margin:36px 0 6px; } h3 { font-size:15px; margin:0 0 4px; }
@@ -35,6 +35,24 @@
   dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0; } dt { color:var(--muted); } dd { margin:0; }
   code { font-size:13px; }
   [hidden] { display:none !important; }
+  [role=tablist] { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin:2px 0 10px; }
+  [role=tab] { background:var(--card); color:var(--text); border:0; border-right:1px solid var(--border); padding:5px 14px; font:inherit; font-size:14px; cursor:pointer; }
+  [role=tab]:last-child { border-right:0; }
+  [role=tab][aria-selected=true] { background:var(--accent); color:var(--bg); font-weight:600; }
+  [role=tab]:focus-visible, table.hm td[data-key]:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  table.hm { width:auto; border-collapse:separate; border-spacing:2px; font-size:12px; }
+  table.hm th, table.hm td { border:0; padding:0 1px; }
+  table.hm th.grp { text-align:center; color:var(--text); font-weight:600; border-bottom:1px solid var(--border); }
+  table.hm th.col { text-align:center; font-size:11px; }
+  table.hm th.l { padding-right:8px; font-weight:400; color:var(--text); white-space:nowrap; position:sticky; left:0; background:var(--bg); z-index:1; }
+  table.hm tr.hsec th { color:var(--muted); font-weight:600; padding-top:10px; text-transform:uppercase; font-size:11px; letter-spacing:.3px; }
+  table.hm tr.hsec th { position:static; background:none; } table.hm tr.hsec span { position:sticky; left:0; }
+  table.hm td { min-width:40px; height:24px; text-align:center; font-variant-numeric:tabular-nums; font-weight:600; font-size:11px; border-radius:4px; position:relative; }
+  table.hm td[data-key] { cursor:pointer; } table.hm td.tie { box-shadow:inset 0 0 0 1px var(--muted); }
+  table.hm td sup { position:absolute; top:1px; right:2px; font-size:8px; line-height:1; }
+  table.hm td.miss { font-size:9px; } table.hm td.miss sup { position:static; }
+  .panel.flash { outline:3px solid var(--accent); }
+  details.hmnotes summary { cursor:pointer; color:var(--muted); font-size:13px; margin:4px 0; }
 </style>
 </head>
 <body>
@@ -44,18 +62,31 @@
 <p class=muted>Every command and shape of the old matrix: strings, data types, value sizes, key counts, TTL, eviction, zipf, hot key, cluster mode and primary+replica, at P1/P16/P64, swept over io-threads. Two builds on the same hosts: valkey-io <b>unstable</b> and <b>superset-frontier</b>. Setup and method are at the bottom.</p>
 <div id=capacity></div>
 
-<h2>Throughput</h2>
+<h2 id=tput-h>Throughput</h2>
+<div role=tablist data-sec=tput aria-labelledby=tput-h><button type=button role=tab id=tput-tab-graphs data-view=graphs aria-controls=tput-graphs aria-selected=true tabindex=0>Graphs</button><button type=button role=tab id=tput-tab-heatmap data-view=heatmap aria-controls=tput-heatmap aria-selected=false tabindex=-1>Heatmap</button></div>
+<div role=tabpanel id=tput-graphs aria-labelledby=tput-tab-graphs>
 <div class=key><span><i style="background:var(--u)"></i>unstable</span><span><i style="background:var(--f)"></i>superset-frontier</span><span class=muted>points: median of valid reps; whiskers: min–max of valid reps; a MISSING value is a gap, never zero</span></div>
 <div id=tput></div>
+</div>
+<div role=tabpanel id=tput-heatmap aria-labelledby=tput-tab-heatmap hidden>
+<p class=muted id=tput-hmkey></p>
+<div class=scale id=tput-hmscale></div>
+<div class=scroll><table class=hm id=tput-hm></table></div>
+<div id=tput-hmnotes></div>
+</div>
 
-<h2>Latency percentiles</h2>
+<h2 id=lat-h>Latency percentiles</h2>
+<div role=tablist data-sec=lat aria-labelledby=lat-h><button type=button role=tab id=lat-tab-graphs data-view=graphs aria-controls=lat-graphs aria-selected=true tabindex=0>Graphs</button><button type=button role=tab id=lat-tab-heatmap data-view=heatmap aria-controls=lat-heatmap aria-selected=false tabindex=-1>Heatmap</button></div>
+<div role=tabpanel id=lat-graphs aria-labelledby=lat-tab-graphs>
 <div class=key><span class=muted>Bars in each group: unstable p50, p99, p99.9 (blue, dark to light), then superset-frontier p50, p99, p99.9 (orange, dark to light); ms, median of valid reps. A percentile that was not recorded is shown as "not measured", never as zero.</span></div>
 <div id=lat></div>
-
-<h2>superset-frontier / unstable throughput</h2>
-<div class=scale><span>unstable higher</span><span id=scalelo></span><span class=bar id=scalebar></span><span id=scalehi></span><span>superset-frontier higher</span><span>· log2 scale centred on 1.00</span></div>
-<div class=scroll><table class=heat id=heat></table></div>
-<div id=heatnotes></div>
+</div>
+<div role=tabpanel id=lat-heatmap aria-labelledby=lat-tab-heatmap hidden>
+<p class=muted id=lat-hmkey></p>
+<div class=scale id=lat-hmscale></div>
+<div class=scroll><table class=hm id=lat-hm></table></div>
+<div id=lat-hmnotes></div>
+</div>
 
 <h2>Results <span class=muted>(<span id=n></span> scenarios)</span></h2>
 <p class=muted id=legend>Absolute ops/s for both builds side by side; latency in ms; the ratio appears only next to both numbers. Each value is the median of the valid reps; the rep count and range go with it.</p>
@@ -73,6 +104,16 @@ const SPEC = {x: "iot", xTitle: "io-threads", yTitle: "ops/s",
     group: c => [`${c.desc}|${c.P}`, `${c.desc}, P${c.P}`,
                  ({1: "Tier 1: strings, thread scaling", 2: "Tier 2: data types", 3: "Tier 3: sizes, key counts, distributions, cluster", 4: "Tier 4: primary + replica", 5: "Tier 1/2: two cores"})[c.tier],
                  c.tier === 5 ? 1.5 : c.tier],
+    hm: {pct: "p99_ms", row: c => [c.family, ({get: "GET", set: "SET", r80w20: "80/20 GET/SET", r50w50: "50/50 GET/SET", hget: "HGET", hset: "HSET",
+           lpush: "LPUSH", lrange: "LRANGE", sadd: "SADD", sismember: "SISMEMBER", zadd: "ZADD", zrange: "ZRANGE", xadd: "XADD", xrange: "XRANGE",
+           mget10: "MGET 10 keys", mset10: "MSET 10 keys", "size16-get": "GET 16 B", "size16-set": "SET 16 B", "size1024-get": "GET 1 KB",
+           "size1024-set": "SET 1 KB", "size16384-get": "GET 16 KB", "size16384-set": "SET 16 KB", "size131072-get": "GET 128 KB",
+           "size131072-set": "SET 128 KB", "zipf-r80w20": "80/20 zipf 0.99", "hotkey-r80w20": "80/20 one hot key", "keys10k-r80w20": "80/20 10k keys",
+           "keys30m-r80w20": "80/20 30M keys", "ttl-r80w20": "80/20 TTL churn", "evict-r50w50": "50/50 maxmemory eviction",
+           "cluster-get": "cluster GET", "cluster-set": "cluster SET", "cluster-r80w20": "cluster 80/20", "repl-set": "SET + replica",
+           "repl-r50w50": "50/50 + replica"})[c.family] || c.family,
+           ({1: "Strings, 128 B, 1M keys", 2: "Data types and multi-key", 3: "Value size, key pattern, TTL, eviction, cluster", 4: "Primary + replica"})[c.tier],
+           c.tier, c.desc]},
     cols: ["id", "desc", "P", "iot", "conns"]};
 (window.VIEW_DATA ? Promise.resolve(window.VIEW_DATA) : fetch("data/matrix.json").then(r => r.json())).then(D => renderPage(D, SPEC));
 </script>
